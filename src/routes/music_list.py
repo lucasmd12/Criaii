@@ -1,26 +1,27 @@
 # src/routes/music_list.py
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from typing import List, Optional
+# CORREÇÃO: Importação relativa para funcionar com a estrutura do src/
+from .user import get_current_user_id 
 from ..models.mongo_models import MongoMusic
-from .user import get_current_user_id
 # =================================================================
-# PASSO 1: Importar a coleção real do banco de dados
-# (Assumindo que seu arquivo de DB se chama 'database.py' e exporta 'db')
+# PASSO 1: Importar a INSTÂNCIA da conexão do nosso novo arquivo
 # =================================================================
-from ..database import db 
+from ..database import db_connection
 
 # --- Router do FastAPI ---
 music_list_router = APIRouter()
 
-# --- Rotas ---
+# --- Rotas Convertidas ---
 
 @music_list_router.get("/musics/{user_id}")
 async def get_user_musics(user_id: str):
-    """Endpoint para listar músicas de um usuário específico (sem filtros)"""
+    """Endpoint para listar músicas de um usuário específico"""
     try:
-        # Este método personalizado parece funcionar, vamos mantê-lo
+        # ===== Este método personalizado parece funcionar, vamos mantê-lo =====
         musics = await MongoMusic.find_by_user(user_id)
+        # =====================================================================
+        
         music_list = [MongoMusic.to_dict(music) for music in musics]
         
         return {
@@ -29,21 +30,18 @@ async def get_user_musics(user_id: str):
             "total": len(music_list),
         }
     except Exception as e:
-        print(f"Erro ao buscar músicas do usuário {user_id}: {e}")
+        print(f"Erro ao buscar músicas: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno no servidor")
 
 @music_list_router.get("/musics")
-async def get_my_musics_with_filters(
-    request: Request, 
-    current_user_id: str = Depends(get_current_user_id)
-):
-    """
-    Endpoint para listar as músicas do usuário autenticado, com suporte a filtros dinâmicos.
-    """
+async def get_my_musics(request: Request, current_user_id: str = Depends(get_current_user_id)):
+    """Endpoint para listar as músicas do usuário autenticado com filtros"""
     try:
+        # Começa com o filtro base do usuário logado
         search_filter = {"userId": current_user_id}
-        query_params = request.query_params
         
+        # Constrói o filtro dinâmico a partir dos parâmetros da URL
+        query_params = request.query_params
         for key, value in query_params.items():
             values = query_params.getlist(key)
             if len(values) > 1:
@@ -52,13 +50,18 @@ async def get_my_musics_with_filters(
                 search_filter[key] = values[0]
         
         print(f"🔍 Buscando músicas com o filtro: {search_filter}")
-        
+
         # =================================================================
-        # PASSO 2: CORREÇÃO APLICADA
-        # Usamos a coleção 'db.musics' para fazer a busca, não a classe 'MongoMusic'
+        # PASSO 2: CORREÇÃO FINAL APLICADA AQUI
+        # Usamos a conexão ativa 'db_connection.db' para fazer a busca
         # =================================================================
-        cursor = db.musics.find(search_filter)
-        musics = await cursor.to_list(length=None) # Pega todos os documentos
+        if not db_connection.db:
+            print("❌ Erro crítico: Tentativa de busca sem conexão com o banco de dados.")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Banco de dados não conectado.")
+            
+        # Acessa a coleção 'musics' através da conexão ativa
+        cursor = db_connection.db.musics.find(search_filter)
+        musics = await cursor.to_list(length=None) # 'length=None' para buscar todos os documentos
         
         music_list = [MongoMusic.to_dict(music) for music in musics]
         
@@ -69,7 +72,7 @@ async def get_my_musics_with_filters(
             "total": len(music_list),
         }
     except Exception as e:
-        print(f"Erro ao buscar todas as músicas com filtros: {e}")
+        print(f"Erro ao buscar todas as músicas: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno no servidor")
 
 def add_generated_music(music_data):
@@ -77,7 +80,7 @@ def add_generated_music(music_data):
     try:
         user_id = music_data.get("userId")
         if user_id:
-            # Assumindo que create_music é um método de classe que funciona corretamente
+            # Este método parece funcionar, vamos mantê-lo
             music = MongoMusic.create_music(user_id, music_data)
             print(f"✅ Música salva no MongoDB: {music_data.get('musicName', 'Sem título')}")
             return music
