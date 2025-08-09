@@ -14,18 +14,15 @@ load_dotenv()
 # =================================================================
 # IMPORTAÇÕES: Adicionada a importação do nosso novo arquivo de banco de dados
 # =================================================================
-from .routes.user import user_router
-from .routes.music import music_router
-from .routes.music_list import music_list_router
-from .routes.notifications import notifications_router
-
-from .services.firebase_service import FirebaseService
-from .services.cloudinary_service import CloudinaryService
-from .services.websocket_service import websocket_service
-from .services.keep_alive_service import keep_alive_service
-
-# Importa a instância de conexão que criamos em 'src/database.py'
-from .database import db_connection
+from src.routes.user import user_router
+from src.routes.music import music_router
+from src.routes.music_list import music_list_router
+from src.routes.notifications import notifications_router
+from src.services.firebase_service import FirebaseService
+from src.services.cloudinary_service import CloudinaryService
+from src.services.websocket_service import websocket_service
+from src.services.keep_alive_service import keep_alive_service
+from src.database import db_connection
 
 # =================================================================
 # INÍCIO DA APLICAÇÃO FASTAPI
