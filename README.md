@@ -1,3 +1,10 @@
+
+# por essas versoes
+dnspython==2.7.0
+motor==3.7.1
+pymongo==4.14.0
+
+
 # 🎵 Alquimista Musical - Gerador de Música com IA
 
 Um aplicativo completo para gerar músicas usando Inteligência Artificial, com interface moderna e sistema de autenticação.
