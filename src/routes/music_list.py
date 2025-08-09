@@ -1,28 +1,23 @@
-# src/routes/music_list.py
+# src/routes/music_list.py (O Maître e Arquivista)
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-# CORREÇÃO: Importação relativa para funcionar com a estrutura do src/
 from .user import get_current_user_id 
 from ..models.mongo_models import MongoMusic
-# =================================================================
-# PASSO 1: Importar a INSTÂNCIA da conexão do nosso novo arquivo
-# =================================================================
 from ..database import db_connection
 
 # --- Router do FastAPI ---
 music_list_router = APIRouter()
 
-# --- Rotas Convertidas ---
+# --- Rotas do Maître ---
 
 @music_list_router.get("/musics/{user_id}")
 async def get_user_musics(user_id: str):
-    """Endpoint para listar músicas de um usuário específico"""
+    """Maître buscando o cardápio pessoal de um cliente específico."""
+    print(f"🤵 Maître: Consultando o cardápio pessoal do cliente {user_id}.")
     try:
-        # ===== Este método personalizado parece funcionar, vamos mantê-lo =====
         musics = await MongoMusic.find_by_user(user_id)
-        # =====================================================================
-        
         music_list = [MongoMusic.to_dict(music) for music in musics]
+        print(f"✅ Maître: Encontrados {len(music_list)} pratos no cardápio do cliente {user_id}.")
         
         return {
             "status": "success",
@@ -30,18 +25,21 @@ async def get_user_musics(user_id: str):
             "total": len(music_list),
         }
     except Exception as e:
-        print(f"Erro ao buscar músicas: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno no servidor")
+        print(f"🚨 Maître: Erro ao consultar o cardápio do cliente {user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema ao buscar o cardápio deste cliente.")
 
 @music_list_router.get("/musics")
 async def get_my_musics(request: Request, current_user_id: str = Depends(get_current_user_id)):
-    """Endpoint para listar as músicas do usuário autenticado com filtros"""
+    """Maître buscando pratos no cardápio para o cliente, aplicando seus filtros e preferências."""
     try:
-        # Começa com o filtro base do usuário logado
         search_filter = {"userId": current_user_id}
         
-        # Constrói o filtro dinâmico a partir dos parâmetros da URL
         query_params = request.query_params
+        if query_params:
+            print(f"🤵 Maître: Cliente {current_user_id} pediu para ver o cardápio com preferências especiais: {dict(query_params)}")
+        else:
+            print(f"🤵 Maître: Cliente {current_user_id} pediu para ver seu cardápio completo.")
+
         for key, value in query_params.items():
             values = query_params.getlist(key)
             if len(values) > 1:
@@ -49,21 +47,17 @@ async def get_my_musics(request: Request, current_user_id: str = Depends(get_cur
             elif len(values) == 1:
                 search_filter[key] = values[0]
         
-        print(f"🔍 Buscando músicas com o filtro: {search_filter}")
+        print(f"🔍 Maître: Buscando no livro de receitas com os filtros: {search_filter}")
 
-        # =================================================================
-        # PASSO 2: CORREÇÃO FINAL APLICADA AQUI
-        # Usamos a conexão ativa 'db_connection.db' para fazer a busca
-        # =================================================================
         if not db_connection.db:
-            print("❌ Erro crítico: Tentativa de busca sem conexão com o banco de dados.")
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Banco de dados não conectado.")
+            print("🚨 Maître: O livro de receitas (banco de dados) está inacessível no momento!")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Nosso livro de receitas está temporariamente indisponível.")
             
-        # Acessa a coleção 'musics' através da conexão ativa
         cursor = db_connection.db.musics.find(search_filter)
-        musics = await cursor.to_list(length=None) # 'length=None' para buscar todos os documentos
+        musics = await cursor.to_list(length=None)
         
         music_list = [MongoMusic.to_dict(music) for music in musics]
+        print(f"✅ Maître: Encontramos {len(music_list)} pratos que correspondem às preferências do cliente.")
         
         return {
             "status": "success",
@@ -72,21 +66,25 @@ async def get_my_musics(request: Request, current_user_id: str = Depends(get_cur
             "total": len(music_list),
         }
     except Exception as e:
-        print(f"Erro ao buscar todas as músicas: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno no servidor")
+        print(f"🚨 Maître: Houve um problema ao tentar filtrar o cardápio para o cliente {current_user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema ao buscar os pratos em nosso cardápio.")
+
+# --- Função do Arquivista ---
 
 def add_generated_music(music_data):
     """Função para adicionar música gerada à lista"""
+    music_name_for_log = music_data.get('musicName', 'Sem título')
+    print(f"✍️ Arquivista: Recebendo um novo prato da cozinha para registrar: '{music_name_for_log}'.")
     try:
         user_id = music_data.get("userId")
         if user_id:
-            # Este método parece funcionar, vamos mantê-lo
+            # Se create_music também for assíncrono, precisará de 'await' quando for chamado em uma função async
             music = MongoMusic.create_music(user_id, music_data)
-            print(f"✅ Música salva no MongoDB: {music_data.get('musicName', 'Sem título')}")
+            print(f"✅ Arquivista: Prato '{music_name_for_log}' do cliente {user_id} foi registrado com sucesso no livro de receitas (MongoDB).")
             return music
         else:
-            print("❌ Erro: userId não fornecido para salvar música")
+            print(f"❌ Arquivista: Tentativa de registrar um prato sem identificação do cliente. Registro cancelado.")
             return None
     except Exception as error:
-        print(f"❌ Erro ao salvar música no MongoDB: {error}")
+        print(f"🚨 Arquivista: Falha crítica ao tentar registrar o prato '{music_name_for_log}' no livro de receitas: {error}")
         return None
