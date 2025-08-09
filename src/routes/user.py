@@ -4,9 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from typing import Optional
 from pydantic import BaseModel, Field
 
-# =================================================================
-# CORREÇÃO APLICADA AQUI: De '..' para '.' ou, neste caso, sem pontos.
-# =================================================================
 from models.mongo_models import MongoUser, generate_token, verify_token
 
 # --- Modelos Pydantic para Validação de Entrada ---
@@ -112,3 +109,4 @@ async def get_users():
     """Recepcionista informando que a lista de todos os clientes é confidencial."""
     print("🔐 Recepcionista: Tentativa de acesso à lista completa de clientes foi bloqueada por segurança.")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A lista de todos os clientes é confidencial e não pode ser acessada.")
+
