@@ -19,7 +19,7 @@ function App() {
       })
       .then(response => response.json())
       .then(data => {
-        if (data.valid) {
+        if (data.user) { // Verifica se o objeto 'user' existe na resposta
           setUser(data.user)
         } else {
           localStorage.removeItem('alquimista_token')
