@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional
 from pydantic import BaseModel
 
-from routes.user import get_current_user_id
+from .user import get_current_user_id
 from models.notification_models import notification_service
 
 # --- Router do FastAPI ---
@@ -134,3 +134,5 @@ async def get_dashboard_data(user_id: str = Depends(get_current_user_id)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ocorreu um problema ao preparar o resumo do restaurante."
         )
+
+
