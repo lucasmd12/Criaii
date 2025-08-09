@@ -1,3 +1,4 @@
+# src/main.py
 import os
 import sys
 from dotenv import load_dotenv
@@ -11,8 +12,7 @@ import socketio
 load_dotenv()
 
 # =================================================================
-# CORREÇÃO APLICADA AQUI: Importações relativas
-# Adicionado "." para que o Python encontre os módulos dentro do pacote 'src'.
+# IMPORTAÇÕES: Adicionada a importação do nosso novo arquivo de banco de dados
 # =================================================================
 from .routes.user import user_router
 from .routes.music import music_router
@@ -23,6 +23,9 @@ from .services.firebase_service import FirebaseService
 from .services.cloudinary_service import CloudinaryService
 from .services.websocket_service import websocket_service
 from .services.keep_alive_service import keep_alive_service
+
+# Importa a instância de conexão que criamos em 'src/database.py'
+from .database import db_connection
 
 # =================================================================
 # INÍCIO DA APLICAÇÃO FASTAPI
@@ -51,20 +54,21 @@ app.add_middleware(
 )
 
 # --- Integração do WebSocket ---
-# Cria uma aplicação ASGI que combina FastAPI com Socket.IO
 socket_app = socketio.ASGIApp(websocket_service.sio, app)
 
 # --- Evento de Startup ---
 @app.on_event("startup")
 async def on_startup():
     print("🎵 Iniciando Alquimista Musical Backend...")
-    print("🔧 Inicializando serviços externos...")
     
-    # Inicializa serviços principais
+    # =================================================================
+    # CORREÇÃO: Conectar ao banco de dados como primeiro passo
+    # =================================================================
+    db_connection.connect()
+    
+    print("🔧 Inicializando serviços externos...")
     FirebaseService.initialize()
     CloudinaryService.initialize()
-    
-    # Inicia o keep-alive para manter a cozinha (Hugging Face) sempre ativa
     keep_alive_service.start()
     
     print("🍃 Serviços externos inicializados.")
@@ -77,6 +81,12 @@ async def on_startup():
 async def on_shutdown():
     print("🛑 Parando serviços...")
     keep_alive_service.stop()
+    
+    # =================================================================
+    # CORREÇÃO: Desconectar do banco de dados ao desligar
+    # =================================================================
+    db_connection.disconnect()
+    
     print("✅ Serviços parados com segurança.")
 
 # --- Inclusão das Rotas da API ---
@@ -129,12 +139,9 @@ async def websocket_info():
 # LÓGICA PARA SERVIR O FRONTEND (React/Vite)
 # =================================================================
 
-# 1. Define o caminho para a pasta de build do frontend.
-# Tornando o caminho mais robusto usando a localização do arquivo atual
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "static", "dist")
 
-# 2. Verifica se o diretório de build existe
 if not os.path.exists(FRONTEND_BUILD_DIR):
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     print(f"!! AVISO: Diretório de build do frontend não encontrado.")
@@ -142,11 +149,8 @@ if not os.path.exists(FRONTEND_BUILD_DIR):
     print(f"!! Execute 'npm run build' no diretório src/static para gerar o build.")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 else:
-    # 3. Monta o diretório de arquivos estáticos
     app.mount("/", StaticFiles(directory=FRONTEND_BUILD_DIR, html=True), name="static")
     print(f"✅ Frontend servido de: {FRONTEND_BUILD_DIR}")
 
 # Exporta a aplicação ASGI que inclui WebSocket
 application = socket_app
-
-
