@@ -34,8 +34,12 @@ class NotificationService:
                 "status": "in_progress" if step_data.get("progress", 0) < 100 else "completed"
             }
             
-            self.process_history_collection.insert_one(process_step)
-            print(f"📝 Etapa salva: {step_data.get('step')} - {step_data.get('progress')}%")
+            self.process_history_collection.update_one(
+                {"user_id": user_id, "process_id": process_id},
+                {"$set": process_step},
+                upsert=True
+            )
+            print(f"📝 Processo atualizado/salvo: {step_data.get("step")} - {step_data.get("progress")}%")
             
         except Exception as e:
             print(f"❌ Erro ao salvar etapa do processo: {e}")
@@ -65,7 +69,7 @@ class NotificationService:
             print(f"❌ Erro ao salvar notificação: {e}")
             return None
     
-    def get_user_notifications(self, user_id: str, limit: int = 50) -> List[Dict]:
+    async def get_user_notifications(self, user_id: str, limit: int = 50, skip: int = 0) -> List[Dict]:
         """Recupera notificações do usuário."""
         if not self.client:
             return []
@@ -75,6 +79,7 @@ class NotificationService:
                 self.notifications_collection
                 .find({"user_id": user_id})
                 .sort("timestamp", -1)
+                .skip(skip)
                 .limit(limit)
             )
             
@@ -89,7 +94,7 @@ class NotificationService:
             print(f"❌ Erro ao recuperar notificações: {e}")
             return []
     
-    def get_process_history(self, user_id: str, process_id: str = None) -> List[Dict]:
+    async def get_process_history(self, user_id: str, process_id: str = None, limit: int = 20, skip: int = 0) -> List[Dict]:
         """Recupera histórico de processos do usuário."""
         if not self.client:
             return []
@@ -99,12 +104,21 @@ class NotificationService:
             if process_id:
                 query["process_id"] = process_id
             
-            history = list(
-                self.process_history_collection
-                .find(query)
-                .sort("timestamp", -1)
-                .limit(100)
-            )
+            # Agrega para obter o último status de cada processo
+            pipeline = [
+                {"$match": query},
+                {"$sort": {"timestamp": -1}},
+                {"$group": {
+                    "_id": "$process_id",
+                    "latest_record": {"$first": "$$ROOT"}
+                }},
+                {"$replaceRoot": {"newRoot": "$latest_record"}},
+                {"$sort": {"timestamp": -1}},
+                {"$limit": limit},
+                {"$skip": skip}
+            ]
+            
+            history = list(self.process_history_collection.aggregate(pipeline))
             
             # Converte ObjectId para string e formata timestamp
             for record in history:
@@ -117,7 +131,7 @@ class NotificationService:
             print(f"❌ Erro ao recuperar histórico: {e}")
             return []
     
-    def mark_notifications_as_read(self, user_id: str, notification_ids: List[str] = None):
+    async def mark_notifications_as_read(self, user_id: str, notification_ids: List[str] = None):
         """Marca notificações como lidas."""
         if not self.client:
             return
@@ -140,7 +154,7 @@ class NotificationService:
             print(f"❌ Erro ao marcar notificações como lidas: {e}")
             return 0
     
-    def get_unread_count(self, user_id: str) -> int:
+    async def get_unread_count(self, user_id: str) -> int:
         """Retorna quantidade de notificações não lidas."""
         if not self.client:
             return 0
