@@ -14,7 +14,9 @@ class MongoUser:
     @classmethod
     async def create_user(cls, db_manager: DatabaseConnection, username: str, password: str):
         """Cria um novo usuário, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None:
+        # =================== FIM DA CORREÇÃO ====================
             print("⚠️ Gerente indisponível, operação de criar usuário não realizada.")
             return None
 
@@ -35,15 +37,19 @@ class MongoUser:
     @classmethod
     async def find_by_username(cls, db_manager: DatabaseConnection, username: str):
         """Busca usuário por username, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: 
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None: 
             return None
+        # =================== FIM DA CORREÇÃO ====================
         return await db_manager.db.users.find_one({"username": username})
     
     @classmethod
     async def find_by_id(cls, db_manager: DatabaseConnection, user_id: str):
         """Busca usuário por ID, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: 
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None: 
             return None
+        # =================== FIM DA CORREÇÃO ====================
         return await db_manager.db.users.find_one({"_id": ObjectId(user_id)})
     
     # Métodos que não acessam o DB podem continuar como estáticos, pois não dependem da classe.
@@ -67,7 +73,9 @@ class MongoMusic:
     @classmethod
     async def create_music(cls, db_manager: DatabaseConnection, user_id: str, music_data: dict):
         """Cria uma nova música, registrando no cofre fornecido pelo Gerente."""
-        if not db_manager.db:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None:
+        # =================== FIM DA CORREÇÃO ====================
             print("⚠️ Gerente indisponível, operação de criar música não realizada.")
             return None
 
@@ -90,16 +98,20 @@ class MongoMusic:
     @classmethod
     async def find_by_user(cls, db_manager: DatabaseConnection, user_id: str):
         """Busca músicas de um usuário, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: 
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None: 
             return []
+        # =================== FIM DA CORREÇÃO ====================
         cursor = db_manager.db.musics.find({"userId": user_id}).sort("created_at", -1)
         return await cursor.to_list(length=None)
     
     @classmethod
     async def find_all(cls, db_manager: DatabaseConnection):
         """Busca todas as músicas, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: 
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if db_manager.db is None: 
             return []
+        # =================== FIM DA CORREÇÃO ====================
         cursor = db_manager.db.musics.find().sort("created_at", -1)
         return await cursor.to_list(length=None)
     
