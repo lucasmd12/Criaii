@@ -3,8 +3,9 @@
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Depends, Form, UploadFile, File
 from typing import Optional, Literal
 
+# --- CORREÇÃO DE IMPORTAÇÃO ---
 from services.music_generation_service import MusicGenerationService
-from routes.user import get_current_user_id
+from .user import get_current_user_id
 
 # --- Router do FastAPI ---
 music_router = APIRouter()
@@ -38,7 +39,7 @@ async def generate_music(
     Recebe todos os parâmetros do "cardápio" e envia o pedido para a "cozinha" (Hugging Face).
     Retorna imediatamente e processa em background com feedback em tempo real via WebSocket.
     """
-    print(f"\n👨‍🍳 Garçom: Anotando um novo pedido do cliente {current_user_id} para a música '{musicName}'.")
+    print(f"\n👨‍🍳 Garçom: Anotando um novo pedido do cliente {current_user_id} para a música \'{musicName}\'.")
     
     try:
         # Garçom confere se o pedido mínimo foi feito
@@ -87,7 +88,7 @@ async def generate_music(
             "userId": current_user_id
         }
         
-        print(f"✅ Garçom: Comanda para '{musicName}' pronta! Enviando para a Cozinha em segundo plano.")
+        print(f"✅ Garçom: Comanda para \'{musicName}\' pronta! Enviando para a Cozinha em segundo plano.")
         
         # Garçom leva o pedido para a Cozinha e volta para atender outros clientes
         background_tasks.add_task(
@@ -97,7 +98,7 @@ async def generate_music(
             user_id=current_user_id
         )
         
-        print(f"👍 Garçom: Pedido da música '{musicName}' foi entregue na Cozinha. Informando o cliente.")
+        print(f"👍 Garçom: Pedido da música \'{musicName}\' foi entregue na Cozinha. Informando o cliente.")
         
         return {
             "message": "Seu pedido foi anotado e enviado para nossa cozinha de IA! Acompanhe o progresso pelo painel de avisos.",
