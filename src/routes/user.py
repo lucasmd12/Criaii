@@ -5,6 +5,10 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from models.mongo_models import MongoUser, generate_token, verify_token
+# ================== INÍCIO DA CORREÇÃO ==================
+# O Recepcionista agora precisa saber como pedir acesso ao Gerente do Cofre.
+from database import get_database, DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 # --- Modelos Pydantic para Validação de Entrada ---
 class UserCreate(BaseModel):
@@ -19,6 +23,7 @@ class UserLogin(BaseModel):
 user_router = APIRouter()
 
 # --- Dependência para obter o ID do usuário a partir do token (O Crachá de Cliente) ---
+# Esta função não precisa de acesso ao DB, então permanece igual.
 async def get_current_user_id(authorization: Optional[str] = Header(None)):
     """Verifica o crachá (token) do cliente para dar acesso às áreas restritas."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -38,11 +43,14 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)):
 # --- Rotas do Recepcionista ---
 
 @user_router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, db_manager: DatabaseConnection = Depends(get_database)):
     """Recepcionista registrando um novo cliente no livro de reservas."""
     print(f"🤵 Recepcionista: Recebendo um novo cliente para registro: '{user_data.username}'")
     try:
-        user = MongoUser.create_user(user_data.username.strip(), user_data.password)
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que cria o usuário.
+        user = await MongoUser.create_user(db_manager, user_data.username.strip(), user_data.password)
+        # =================== FIM DA CORREÇÃO ====================
         if not user:
             print(f"⚠️ Recepcionista: Tentativa de registro com nome já existente: '{user_data.username}'")
             raise HTTPException(
@@ -63,11 +71,14 @@ async def register(user_data: UserCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema em nosso sistema de registro. Tente novamente.")
 
 @user_router.post("/login")
-async def login(user_data: UserLogin):
+async def login(user_data: UserLogin, db_manager: DatabaseConnection = Depends(get_database)):
     """Recepcionista verificando a identidade de um cliente que está chegando."""
     print(f"🤵 Recepcionista: Cliente '{user_data.username}' está tentando entrar no restaurante.")
     try:
-        user = MongoUser.find_by_username(user_data.username.strip())
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que busca o usuário.
+        user = await MongoUser.find_by_username(db_manager, user_data.username.strip())
+        # =================== FIM DA CORREÇÃO ====================
         
         if not user or not MongoUser.check_password(user, user_data.password):
             print(f"🚫 Recepcionista: Acesso negado para '{user_data.username}'. Credenciais não conferem.")
@@ -89,11 +100,17 @@ async def login(user_data: UserLogin):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema em nosso sistema de login. Tente novamente.")
 
 @user_router.get("/profile")
-async def get_profile(current_user_id: str = Depends(get_current_user_id)):
+async def get_profile(
+    current_user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database)
+):
     """Recepcionista buscando os dados do cliente no livro de reservas."""
     print(f"🤵 Recepcionista: Buscando informações do cliente com ID: {current_user_id}")
     try:
-        user = MongoUser.find_by_id(current_user_id)
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que busca por ID.
+        user = await MongoUser.find_by_id(db_manager, current_user_id)
+        # =================== FIM DA CORREÇÃO ====================
         if not user:
             print(f"❓ Recepcionista: Cliente com ID {current_user_id} não encontrado no livro de reservas.")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Não encontramos seus dados em nosso sistema.")
@@ -109,4 +126,3 @@ async def get_users():
     """Recepcionista informando que a lista de todos os clientes é confidencial."""
     print("🔐 Recepcionista: Tentativa de acesso à lista completa de clientes foi bloqueada por segurança.")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A lista de todos os clientes é confidencial e não pode ser acessada.")
-
