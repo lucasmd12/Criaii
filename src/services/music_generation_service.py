@@ -1,24 +1,22 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI - Integração completa do Gerente do Cofre (db_manager)
+# Versão: Corrigida por Manus AI - Tratamento de erro pontual adicionado
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
 import asyncio
 from typing import Optional, Tuple
+import os
 
 import numpy as np
-from gradio_client import Client
+from gradio_client import Client, Job
 
 from services.cloudinary_service import CloudinaryService
 from routes.music_list import add_generated_music
-# ================== INÍCIO DA CORREÇÃO ==================
 # A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
 from src.database.database import DatabaseConnection
-# =================== FIM DA CORREÇÃO ====================
 
 class MusicGenerationService:
-    # ... (o __new__ e o __init__ continuam exatamente iguais) ...
     _instance = None
 
     def __new__(cls):
@@ -32,7 +30,7 @@ class MusicGenerationService:
             return
         
         self._initialized = True
-        self.client = None
+        self.client: Optional[Client] = None
         self.space_url = "https://lucasidcloned-cantai-api.hf.space"
         self.websocket_service = None
         self.notification_service = None
@@ -49,7 +47,6 @@ class MusicGenerationService:
         except ImportError:
             print("⚠️ Notification service não disponível")
 
-    # ... (as funções _emit_* continuam exatamente iguais) ...
     async def _emit_progress(self, user_id: str, progress: int, message: str, step: str = "", estimated_time: int = None, process_id: str = None):
         if self.websocket_service:
             try:
@@ -132,22 +129,18 @@ class MusicGenerationService:
             print(f"❌ Erro ao conectar ao espaço: {e}")
             return False
 
-    # ================== INÍCIO DA CORREÇÃO ==================
-    # A Cozinha agora espera receber o 'db_manager' do Garçom.
     async def generate_music_async(self, db_manager: DatabaseConnection, music_data: dict, voice_file=None, user_id: str = None):
-    # =================== FIM DA CORREÇÃO ====================
+        voice_sample_path = None
         try:
-            voice_sample_path = None
             if voice_file:
-                voice_sample_path = f"/tmp/voice_{user_id}_{int(time.time())}.wav"
+                effective_user_id = user_id or music_data.get("userId")
+                voice_sample_path = f"/tmp/voice_{effective_user_id}_{int(time.time())}.wav"
                 with open(voice_sample_path, "wb") as f:
                     content = await voice_file.read()
                     f.write(content)
             
-            # ================== INÍCIO DA CORREÇÃO ==================
-            # Passa o 'db_manager' para a próxima função na cadeia.
             result = await self.generate_music(
-                db_manager=db_manager, # <--- PASSANDO ADIANTE
+                db_manager=db_manager,
                 user_id=user_id or music_data.get("userId"),
                 description=music_data.get("description"),
                 music_name=music_data.get("musicName"),
@@ -159,14 +152,6 @@ class MusicGenerationService:
                 studio_type=music_data.get("studioType", "studio"),
                 voice_sample_path=voice_sample_path
             )
-            # =================== FIM DA CORREÇÃO ====================
-            
-            if voice_sample_path:
-                try:
-                    import os
-                    os.remove(voice_sample_path)
-                except:
-                    pass
             
             return result
             
@@ -174,18 +159,21 @@ class MusicGenerationService:
             print(f"❌ Erro no generate_music_async: {e}")
             await self._emit_error(user_id or music_data.get("userId"), str(e))
             return {"success": False, "error": str(e)}
+        finally:
+            if voice_sample_path and os.path.exists(voice_sample_path):
+                try:
+                    os.remove(voice_sample_path)
+                except OSError as e:
+                    print(f"⚠️ Erro ao remover arquivo temporário: {e}")
 
-    # ================== INÍCIO DA CORREÇÃO ==================
-    # A função principal da Cozinha também precisa receber o 'db_manager'.
+
     async def generate_music(self, db_manager: DatabaseConnection, user_id: str, description: str, music_name: str, 
                            voice_type: str = "instrumental", lyrics: str = "", 
                            genre: str = "", rhythm: str = "", instruments: str = "", 
                            studio_type: str = "studio", voice_sample_path: str = None):
-    # =================== FIM DA CORREÇÃO ====================
         process_id = f"music_{user_id}_{int(time.time())}"
         
         try:
-            # ... (toda a lógica de progresso e conexão com a IA continua a mesma) ...
             if self.notification_service:
                 self.notification_service.start_process_tracking(user_id, process_id, "music_generation")
             
@@ -194,7 +182,8 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 10, "🔌 Conectando com a cozinha IA", "connecting", 170, process_id)
             if not self._connect_to_space():
-                raise Exception("Falha ao conectar com a cozinha IA")
+                # Mensagem de erro mais clara para o usuário
+                raise Exception("Falha ao conectar com o serviço de IA. Tente novamente mais tarde.")
             await asyncio.sleep(2)
             
             await self._emit_progress(user_id, 20, "📝 Enviando pedido para o chef", "sending_order", 150, process_id)
@@ -213,16 +202,24 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            job = self.client.submit(
+            # ================== INÍCIO DA CORREÇÃO ==================
+            # O Chef agora envia o pedido e guarda o 'job' para verificação.
+            job: Optional[Job] = self.client.submit(
                 full_prompt,
                 voice_sample_path,
                 api_name="/predict"
             )
+
+            # Ele verifica se o Forno Aliado aceitou o pedido antes de continuar.
+            if not job:
+                raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
             
+            # O job.result() agora é chamado com a verificação já feita
             result = job.result(timeout=300)
+            # =================== FIM DA CORREÇÃO ====================
             
             if not result:
-                raise Exception("Falha na geração da música")
+                raise Exception("Falha na geração da música. O serviço de IA não retornou um resultado válido.")
             
             await self._emit_progress(user_id, 85, "🎵 Finalizando detalhes da música", "finalizing", 30, process_id)
             await asyncio.sleep(2)
@@ -233,12 +230,10 @@ class MusicGenerationService:
             music_url = cloudinary_service.upload_audio(result, f"{music_name}_{user_id}")
             
             if not music_url:
-                raise Exception("Falha no upload da música")
+                raise Exception("Falha no upload da música para a nuvem.")
             
             await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
             
-            # ================== INÍCIO DA CORREÇÃO ==================
-            # Finalmente, a Cozinha entrega a chave do cofre para o Arquivista registrar a música.
             await add_generated_music(db_manager, {
                 "userId": user_id,
                 "musicName": music_name,
@@ -248,7 +243,6 @@ class MusicGenerationService:
                 "genre": genre,
                 "lyrics": lyrics
             })
-            # =================== FIM DA CORREÇÃO ====================
             
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
@@ -277,7 +271,6 @@ class MusicGenerationService:
                 "message": "Erro ao gerar música. Tente novamente."
             }
 
-    # ... (a função _build_prompt e _call_huggingface_api continuam exatamente iguais) ...
     def _build_prompt(self, description: str, voice_type: str, lyrics: str = "", 
                      genre: str = "", rhythm: str = "", instruments: str = "", 
                      studio_type: str = "studio") -> str:
