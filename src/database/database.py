@@ -1,41 +1,82 @@
-# src/database.py
-import os
-import motor.motor_asyncio
-from dotenv import load_dotenv
+# src/database.py (O Gerente do Cofre)
 
-# Carrega as variáveis de ambiente para garantir que a URI do Mongo esteja disponível
+import os
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
+from typing import List, Dict, Any
+
+# Carrega as variáveis de ambiente para garantir que a chave do cofre (URI) esteja disponível
 load_dotenv()
 
-MONGO_DB_URI = os.getenv("MONGO_DB_URI")
+class DatabaseConnection:
+    """
+    O Gerente do Cofre. Responsável por guardar a chave (conexão),
+    abrir e fechar o cofre (banco de dados) e supervisionar todas as
+    operações de acesso aos registros.
+    """
+    _client: AsyncIOMotorClient = None
+    db = None
 
-if not MONGO_DB_URI:
-    raise Exception("❌ A variável de ambiente MONGO_DB_URI não foi definida!")
+    async def connect(self):
+        """O Gerente chega para trabalhar e abre o cofre."""
+        if self._client:
+            print("🔑 Gerente do Cofre: O cofre já está aberto.")
+            return
 
-class Database:
-    def __init__(self):
-        self.client = None
-        self.db = None
-
-    def connect(self):
-        print("🔌 Conectando ao MongoDB Atlas...")
+        mongo_uri = os.getenv("MONGO_URI")
+        if not mongo_uri:
+            print("🚨 GERENTE DO COFRE: A CHAVE MESTRA (MONGO_URI) NÃO FOI ENCONTRADA! OPERAÇÃO IMPOSSÍVEL.")
+            raise ValueError("MONGO_URI não encontrada no ambiente.")
+        
+        print("🔑 Gerente do Cofre: Pegando a chave mestra para abrir o cofre (MongoDB)...")
         try:
-            self.client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URI)
-            # O nome do banco de dados é geralmente parte da URI, mas podemos definir um padrão
-            self.db = self.client.get_database("alquimista_musical_db") 
-            print("✅ MongoDB Atlas conectado com sucesso!")
+            self._client = AsyncIOMotorClient(mongo_uri)
+            # Forçar uma conexão para verificar se a chave funciona
+            await self._client.admin.command('ping')
+            self.db = self._client.get_database("alquimista_musical_db")
+            print("✅ Gerente do Cofre: Cofre aberto e pronto para as operações do dia!")
         except Exception as e:
-            print(f"❌ Falha ao conectar ao MongoDB: {e}")
-            self.client = None
+            print(f"🚨 GERENTE DO COFRE: A CHAVE MESTRA FALHOU! Não foi possível abrir o cofre. Erro: {e}")
+            self._client = None
             self.db = None
-    
-    def disconnect(self):
-        if self.client:
-            self.client.close()
-            print("🔌 Conexão com o MongoDB fechada.")
+            raise e # Levanta o erro para parar a aplicação, pois ela não pode funcionar sem DB
 
-# Cria uma instância única que será usada em toda a aplicação
-db_connection = Database()
+    async def disconnect(self):
+        """O Gerente fecha o cofre no final do expediente."""
+        if self._client:
+            self._client.close()
+            self._client = None
+            self.db = None
+            print("🔒 Gerente do Cofre: Cofre trancado com segurança. Fim do expediente.")
 
-# Exporta a variável 'db' que será o objeto do banco de dados após a conexão
-# Inicialmente será None, mas será preenchida no startup do FastAPI
-db = None
+    # =================================================================
+    # MÉTODOS DE SUPERVISÃO (LOGS DE ACESSO AO BANCO DE DADOS)
+    # =================================================================
+
+    async def find_documents(self, collection_name: str, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Supervisiona a busca por registros em uma coleção (gaveta do arquivo)."""
+        print(f"🧐 Gerente do Cofre: Supervisionando busca na gaveta '{collection_name}' com a consulta: {query}")
+        if not self.db:
+            print(f"🚫 Gerente do Cofre: Acesso negado! O cofre está fechado.")
+            return []
+        collection = self.db[collection_name]
+        cursor = collection.find(query)
+        documents = await cursor.to_list(length=None)
+        print(f"📄 Gerente do Cofre: {len(documents)} registro(s) encontrado(s) na gaveta '{collection_name}'.")
+        return documents
+
+    async def insert_document(self, collection_name: str, document: Dict[str, Any]) -> Any:
+        """Supervisiona a inserção de um novo registro em uma coleção."""
+        print(f"✍️ Gerente do Cofre: Supervisionando a adição de um novo registro na gaveta '{collection_name}'.")
+        if not self.db:
+            print(f"🚫 Gerente do Cofre: Acesso negado! O cofre está fechado.")
+            return None
+        collection = self.db[collection_name]
+        result = await collection.insert_one(document)
+        print(f"✅ Gerente do Cofre: Novo registro com ID '{result.inserted_id}' arquivado com sucesso.")
+        return result.inserted_id
+
+# --- Instância Única do Gerente ---
+# O Restaurante tem apenas um Gerente do Cofre. Ele será importado por todos.
+db_connection = DatabaseConnection()
+
