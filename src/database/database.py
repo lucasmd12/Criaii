@@ -3,7 +3,7 @@
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Carrega as variáveis de ambiente para garantir que a chave do cofre (URI) esteja disponível
 load_dotenv()
@@ -14,13 +14,13 @@ class DatabaseConnection:
     abrir e fechar o cofre (banco de dados) e supervisionar todas as
     operações de acesso aos registros.
     """
-    _client: AsyncIOMotorClient = None
+    _client: Optional[AsyncIOMotorClient] = None
     db = None
 
     async def connect(self):
         """O Gerente chega para trabalhar e abre o cofre."""
         if self._client:
-            print("🔑 Gerente do Cofre: O cofre já está aberto.")
+            print("🔑 Gerente do Cofre: O cofre já está aberto e operacional.")
             return
 
         mongo_uri = os.getenv("MONGO_URI")
@@ -76,7 +76,21 @@ class DatabaseConnection:
         print(f"✅ Gerente do Cofre: Novo registro com ID '{result.inserted_id}' arquivado com sucesso.")
         return result.inserted_id
 
-# --- Instância Única do Gerente ---
-# O Restaurante tem apenas um Gerente do Cofre. Ele será importado por todos.
-db_connection = DatabaseConnection()
+# =================================================================
+# --- PONTO DE ACESSO ÚNICO AO GERENTE ---
+# Em vez de criar a instância aqui, criamos uma instância global que será
+# gerenciada pelo ciclo de vida da aplicação.
+# Isso evita a importação circular e garante que o gerente só trabalhe
+# quando o restaurante estiver aberto.
+# =================================================================
+db_manager = DatabaseConnection()
 
+# --- FUNÇÃO DE DEPENDÊNCIA ---
+# Esta é a forma como os "garçons" e "chefs" devem pedir acesso ao cofre.
+# O FastAPI vai garantir que o gerente esteja pronto antes de entregar o acesso.
+async def get_database() -> DatabaseConnection:
+    """Função para os outros serviços 'pedirem' acesso ao Gerente do Cofre."""
+    if not db_manager.db:
+        # Isso garante que, mesmo que algo falhe no startup, ele tente reconectar.
+        await db_manager.connect()
+    return db_manager
