@@ -6,6 +6,10 @@ from pydantic import BaseModel
 
 from .user import get_current_user_id
 from models.notification_models import notification_service
+# ================== INÍCIO DA CORREÇÃO ==================
+# O Gerente do Salão agora precisa saber como pedir acesso ao Gerente do Cofre.
+from database import get_database, DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---
 notifications_router = APIRouter()
@@ -38,18 +42,18 @@ class ProcessHistoryResponse(BaseModel):
 @notifications_router.get("/")
 async def get_notifications(
     user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database),
     limit: int = Query(50, ge=1, le=100),
     skip: int = Query(0, ge=0)
 ):
     """Gerente buscando os últimos avisos no painel para o cliente."""
     print(f"👨‍💼 Gerente: Cliente {user_id} está checando seu painel de avisos.")
     try:
+        # Passamos o db_manager para o serviço de notificação
         notifications = await notification_service.get_user_notifications(
-            user_id=user_id,
-            limit=limit,
-            skip=skip
+            db_manager, user_id=user_id, limit=limit, skip=skip
         )
-        unread_count = await notification_service.get_unread_count(user_id)
+        unread_count = await notification_service.get_unread_count(db_manager, user_id)
         print(f"✅ Gerente: {len(notifications)} avisos encontrados para o cliente {user_id} ({unread_count} não lidos).")
         return {"notifications": notifications, "unread_count": unread_count}
     except Exception as e:
@@ -60,11 +64,14 @@ async def get_notifications(
         )
 
 @notifications_router.get("/unread-count")
-async def get_unread_count(user_id: str = Depends(get_current_user_id)):
+async def get_unread_count(
+    user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database)
+):
     """Gerente fazendo uma contagem rápida de novos avisos para o cliente."""
     print(f"👨‍💼 Gerente: Contando rapidamente os avisos não lidos para o cliente {user_id}.")
     try:
-        count = await notification_service.get_unread_count(user_id)
+        count = await notification_service.get_unread_count(db_manager, user_id)
         print(f"✅ Gerente: Cliente {user_id} tem {count} avisos novos.")
         return {"unread_count": count}
     except Exception as e:
@@ -77,6 +84,7 @@ async def get_unread_count(user_id: str = Depends(get_current_user_id)):
 @notifications_router.post("/mark-read")
 async def mark_notifications_as_read(
     user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database),
     notification_ids: Optional[List[str]] = None
 ):
     """Gerente arquivando avisos antigos do painel do cliente."""
@@ -84,9 +92,9 @@ async def mark_notifications_as_read(
     print(f"👨‍💼 Gerente: Cliente {user_id} está arquivando {action} do seu painel.")
     try:
         if notification_ids:
-            await notification_service.mark_notifications_as_read(user_id, notification_ids)
+            await notification_service.mark_notifications_as_read(db_manager, user_id, notification_ids)
         else:
-            await notification_service.mark_notifications_as_read(user_id)
+            await notification_service.mark_notifications_as_read(db_manager, user_id)
         
         print(f"✅ Gerente: Avisos do cliente {user_id} foram arquivados com sucesso.")
         return {"message": "Avisos arquivados com sucesso!"}
@@ -100,6 +108,7 @@ async def mark_notifications_as_read(
 @notifications_router.get("/process-history")
 async def get_process_history(
     user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database),
     limit: int = Query(20, ge=1, le=50),
     skip: int = Query(0, ge=0)
 ):
@@ -107,9 +116,7 @@ async def get_process_history(
     print(f"👨‍💼 Gerente: Cliente {user_id} está revisando seu histórico de pedidos.")
     try:
         history = await notification_service.get_process_history(
-            user_id=user_id,
-            limit=limit,
-            skip=skip
+            db_manager, user_id=user_id, limit=limit, skip=skip
         )
         print(f"✅ Gerente: Histórico de {len(history)} pedidos encontrado para o cliente {user_id}.")
         return {"history": history}
@@ -121,11 +128,14 @@ async def get_process_history(
         )
 
 @notifications_router.get("/dashboard")
-async def get_dashboard_data(user_id: str = Depends(get_current_user_id)):
+async def get_dashboard_data(
+    user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database)
+):
     """Gerente preparando um resumo do movimento do restaurante para o cliente."""
     print(f"👨‍💼 Gerente: Compilando dados do painel geral para o cliente {user_id}.")
     try:
-        data = await notification_service.get_dashboard_data(user_id)
+        data = await notification_service.get_dashboard_data(db_manager, user_id)
         print(f"✅ Gerente: Resumo do dashboard pronto para o cliente {user_id}.")
         return data
     except Exception as e:
@@ -134,5 +144,3 @@ async def get_dashboard_data(user_id: str = Depends(get_current_user_id)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ocorreu um problema ao preparar o resumo do restaurante."
         )
-
-
