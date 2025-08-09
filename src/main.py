@@ -24,7 +24,9 @@ from src.services.websocket_service import websocket_service
 from src.services.keep_alive_service import keep_alive_service
 # ================== INÍCIO DA CORREÇÃO ==================
 # Importamos o nosso "Gerente do Cofre" e suas funções de controle.
-from src.database import db_manager
+
+from src.database.database import db_manager
+
 # =================== FIM DA CORREÇÃO ====================
 
 # =================================================================
