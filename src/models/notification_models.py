@@ -6,11 +6,10 @@ from typing import Dict, List, Optional
 from bson import ObjectId
 
 # ================== INÍCIO DA CORREÇÃO ==================
-# REMOVEMOS a importação do MongoClient.
-# from pymongo import MongoClient
-
-# Importamos a classe do nosso Gerente para checagem de tipo.
-from database import DatabaseConnection
+# REMOVEMOS a importação do MongoClient e de DatabaseConnection.
+# Este arquivo não deve mais gerenciar a conexão nem importar o tipo diretamente.
+# Ele recebe o db_manager como parâmetro e usa apenas suas propriedades.
+# Isso quebra a dependência circular.
 # =================== FIM DA CORREÇÃO ====================
 
 class NotificationService:
@@ -20,7 +19,7 @@ class NotificationService:
     def __init__(self):
         print("✅ Serviço de Notificação pronto para operar com o Gerente do Cofre.")
 
-    async def save_process_history(self, db_manager: DatabaseConnection, user_id: str, process_id: str, step: str, status: str, message: str):
+    async def save_process_history(self, db_manager, user_id: str, process_id: str, step: str, status: str, message: str):
         """Salva cada etapa do processo para histórico."""
         if not db_manager.db: return
         
@@ -37,12 +36,12 @@ class NotificationService:
                 {"$set": process_step, "$setOnInsert": {"user_id": user_id, "process_id": process_id}},
                 upsert=True
             )
-            print(f"📝 Histórico de processo '{process_id}' atualizado: {step}")
+            print(f"📝 Histórico de processo \'{process_id}\' atualizado: {step}")
             
         except Exception as e:
             print(f"❌ Erro ao salvar etapa do processo: {e}")
     
-    async def create_notification(self, db_manager: DatabaseConnection, user_id: str, title: str, message: str, notification_type: str, metadata: dict):
+    async def create_notification(self, db_manager, user_id: str, title: str, message: str, notification_type: str, metadata: dict):
         """Salva notificação para visualização offline."""
         if not db_manager.db: return None
             
@@ -65,7 +64,7 @@ class NotificationService:
             print(f"❌ Erro ao salvar notificação: {e}")
             return None
     
-    async def get_user_notifications(self, db_manager: DatabaseConnection, user_id: str, limit: int = 50, skip: int = 0) -> List[Dict]:
+    async def get_user_notifications(self, db_manager, user_id: str, limit: int = 50, skip: int = 0) -> List[Dict]:
         """Recupera notificações do usuário."""
         if not db_manager.db: return []
             
@@ -83,7 +82,7 @@ class NotificationService:
             print(f"❌ Erro ao recuperar notificações: {e}")
             return []
     
-    async def get_process_history(self, db_manager: DatabaseConnection, user_id: str, limit: int = 20, skip: int = 0) -> List[Dict]:
+    async def get_process_history(self, db_manager, user_id: str, limit: int = 20, skip: int = 0) -> List[Dict]:
         """Recupera histórico de processos do usuário."""
         if not db_manager.db: return []
             
@@ -101,7 +100,7 @@ class NotificationService:
             print(f"❌ Erro ao recuperar histórico: {e}")
             return []
     
-    async def mark_notifications_as_read(self, db_manager: DatabaseConnection, user_id: str, notification_ids: List[str] = None):
+    async def mark_notifications_as_read(self, db_manager, user_id: str, notification_ids: List[str] = None):
         """Marca notificações como lidas."""
         if not db_manager.db: return 0
             
@@ -119,7 +118,7 @@ class NotificationService:
             print(f"❌ Erro ao marcar notificações como lidas: {e}")
             return 0
     
-    async def get_unread_count(self, db_manager: DatabaseConnection, user_id: str) -> int:
+    async def get_unread_count(self, db_manager, user_id: str) -> int:
         """Retorna quantidade de notificações não lidas."""
         if not db_manager.db: return 0
             
@@ -135,3 +134,5 @@ class NotificationService:
 # Ela apenas espera que o db_manager seja passado para seus métodos.
 notification_service = NotificationService()
 # =================== FIM DA CORREÇÃO ====================
+
+

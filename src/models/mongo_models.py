@@ -2,7 +2,7 @@
 
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 import jwt
 from bson import ObjectId
 
@@ -10,18 +10,16 @@ from bson import ObjectId
 # REMOVEMOS COMPLETAMENTE a lógica de conexão com o banco de dados daqui.
 # Este arquivo não deve mais gerenciar a conexão. Ele apenas define
 # como interagir com o banco de dados, uma vez que a conexão seja fornecida.
-# from pymongo import MongoClient
+# A importação de DatabaseConnection foi removida para evitar ciclos.
+# As anotações de tipo para db_manager também foram removidas para evitar
+# a necessidade de importar DatabaseConnection aqui, quebrando o ciclo.
 # =================== FIM DA CORREÇÃO ====================
-
-# Importamos a classe do nosso Gerente para checagem de tipo.
-from database import DatabaseConnection 
 
 class MongoUser:
     @staticmethod
-    async def create_user(db_manager: DatabaseConnection, username, password):
+    async def create_user(db_manager, username, password):
         """Cria um novo usuário, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db:
-            # Lógica de fallback em memória (se aplicável no futuro)
             print("⚠️ Gerente indisponível, operação de criar usuário não realizada.")
             return None
 
@@ -40,15 +38,17 @@ class MongoUser:
         return user_data
     
     @staticmethod
-    async def find_by_username(db_manager: DatabaseConnection, username):
+    async def find_by_username(db_manager, username):
         """Busca usuário por username, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: return None
+        if not db_manager.db: 
+            return None
         return await db_manager.db.users.find_one({"username": username})
     
     @staticmethod
-    async def find_by_id(db_manager: DatabaseConnection, user_id):
+    async def find_by_id(db_manager, user_id):
         """Busca usuário por ID, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: return None
+        if not db_manager.db: 
+            return None
         return await db_manager.db.users.find_one({"_id": ObjectId(user_id)})
     
     @staticmethod
@@ -59,7 +59,8 @@ class MongoUser:
     @staticmethod
     def to_dict(user):
         """Converte usuário para dicionário (não precisa de acesso ao DB)."""
-        if not user: return None
+        if not user: 
+            return None
         return {
             "id": str(user["_id"]),
             "username": user["username"],
@@ -68,7 +69,7 @@ class MongoUser:
 
 class MongoMusic:
     @staticmethod
-    async def create_music(db_manager: DatabaseConnection, user_id, music_data):
+    async def create_music(db_manager, user_id, music_data):
         """Cria uma nova música, registrando no cofre fornecido pelo Gerente."""
         if not db_manager.db:
             print("⚠️ Gerente indisponível, operação de criar música não realizada.")
@@ -76,7 +77,7 @@ class MongoMusic:
 
         musics_collection = db_manager.db.musics
         music_doc = {
-            "userId": user_id, # Corrigido para 'userId' para consistência com a busca
+            "userId": user_id,
             "music_url": music_data.get("musicUrl"),
             "music_name": music_data.get("musicName", "Música Sem Título"),
             "description": music_data.get("description", ""),
@@ -91,26 +92,29 @@ class MongoMusic:
         return music_doc
     
     @staticmethod
-    async def find_by_user(db_manager: DatabaseConnection, user_id):
+    async def find_by_user(db_manager, user_id):
         """Busca músicas de um usuário, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: return []
+        if not db_manager.db: 
+            return []
         cursor = db_manager.db.musics.find({"userId": user_id}).sort("created_at", -1)
         return await cursor.to_list(length=None)
     
     @staticmethod
-    async def find_all(db_manager: DatabaseConnection):
+    async def find_all(db_manager):
         """Busca todas as músicas, usando o cofre fornecido pelo Gerente."""
-        if not db_manager.db: return []
+        if not db_manager.db: 
+            return []
         cursor = db_manager.db.musics.find().sort("created_at", -1)
         return await cursor.to_list(length=None)
     
     @staticmethod
     def to_dict(music):
         """Converte música para dicionário (não precisa de acesso ao DB)."""
-        if not music: return None
+        if not music: 
+            return None
         return {
             "id": str(music["_id"]),
-            "user_id": music.get("userId"), # Usando .get() para segurança
+            "user_id": music.get("userId"),
             "music_url": music.get("music_url"),
             "music_name": music.get("music_name"),
             "description": music.get("description"),
@@ -132,11 +136,10 @@ def generate_token(user_id):
 def verify_token(token):
     """Verifica se o token JWT é válido"""
     try:
-        # Adicionei a importação que faltava
-        from datetime import timedelta
         payload = jwt.decode(token, os.getenv('SECRET_KEY', 'alquimista-musical-secret-key-2024'), algorithms=['HS256'])
         return payload['user_id']
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
         return None
+
