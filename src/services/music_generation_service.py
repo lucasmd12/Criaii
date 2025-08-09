@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI em colaboração com o Guardião de Pandora
+# Versão: Corrigida por Manus AI - api_name integrado
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -59,7 +59,7 @@ class MusicGenerationService:
                         user_id=user_id,
                         process_id=process_id,
                         step=step,
-                        status='in_progress', # CORRIGIDO
+                        status='in_progress',
                         message=message
                     )
             except Exception as e:
@@ -77,8 +77,8 @@ class MusicGenerationService:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step='completed', # CORRIGIDO
-                        status='success', # CORRIGIDO
+                        step='completed',
+                        status='success',
                         message=f"Música '{music_name}' criada com sucesso"
                     )
                     await self.notification_service.create_notification(
@@ -102,8 +102,8 @@ class MusicGenerationService:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step='error', # CORRIGIDO
-                        status='failed', # CORRIGIDO
+                        step='error',
+                        status='failed',
                         message=error_message
                     )
                     await self.notification_service.create_notification(
@@ -196,7 +196,14 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            job = self.client.submit(full_prompt, voice_sample_path)
+            # =================================================================
+            # CORREÇÃO APLICADA PARA RESOLVER O ERRO DE MÚLTIPLOS ENDPOINTS
+            # =================================================================
+            job = self.client.submit(
+                full_prompt,
+                voice_sample_path,
+                api_name="/predict"  # Especifica qual endpoint da "Cozinha" chamar
+            )
             
             result = job.result(timeout=300)
             
@@ -291,10 +298,10 @@ class MusicGenerationService:
         try:
             if voice_sample_path:
                 # Com amostra de voz: envia o prompt e o caminho do arquivo.
-                result = self.client.predict(prompt, voice_sample_path)
+                result = self.client.predict(prompt, voice_sample_path, api_name="/predict")
             else:
                 # Sem amostra de voz: envia apenas o prompt.
-                result = self.client.predict(prompt)
+                result = self.client.predict(prompt, api_name="/predict")
             
             return result
             
