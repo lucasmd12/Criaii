@@ -1,92 +1,81 @@
-from pymongo import MongoClient
+# src/models/notification_models.py
+
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from bson import ObjectId
+
+# ================== INÍCIO DA CORREÇÃO ==================
+# REMOVEMOS a importação do MongoClient.
+# from pymongo import MongoClient
+
+# Importamos a classe do nosso Gerente para checagem de tipo.
+from database import DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 class NotificationService:
-    """Serviço para gerenciar notificações e histórico de processos."""
+    """Serviço para gerenciar notificações e histórico de processos, usando a conexão fornecida."""
     
+    # O __init__ agora não faz nada, pois a conexão é gerenciada externamente.
     def __init__(self):
-        self.mongo_uri = os.getenv("MONGO_URI")
-        if self.mongo_uri:
-            self.client = MongoClient(self.mongo_uri)
-            self.db = self.client.alquimista_musical
-            self.notifications_collection = self.db.notifications
-            self.process_history_collection = self.db.process_history
-        else:
-            print("⚠️ MONGO_URI não configurada. Notificações não serão persistidas.")
-            self.client = None
-    
-    def save_process_step(self, user_id: str, process_id: str, step_data: Dict):
+        print("✅ Serviço de Notificação pronto para operar com o Gerente do Cofre.")
+
+    async def save_process_history(self, db_manager: DatabaseConnection, user_id: str, process_id: str, step: str, status: str, message: str):
         """Salva cada etapa do processo para histórico."""
-        if not self.client:
-            return
-            
+        if not db_manager.db: return
+        
         try:
             process_step = {
-                "user_id": user_id,
-                "process_id": process_id,
-                "step": step_data.get("step"),
-                "progress": step_data.get("progress"),
-                "message": step_data.get("message"),
+                "status": status,
+                "message": message,
+                "step": step,
                 "timestamp": datetime.utcnow(),
-                "estimated_time": step_data.get("estimated_time"),
-                "status": "in_progress" if step_data.get("progress", 0) < 100 else "completed"
             }
             
-            self.process_history_collection.update_one(
+            await db_manager.db.process_history.update_one(
                 {"user_id": user_id, "process_id": process_id},
-                {"$set": process_step},
+                {"$set": process_step, "$setOnInsert": {"user_id": user_id, "process_id": process_id}},
                 upsert=True
             )
-            print(f"📝 Processo atualizado/salvo: {step_data.get("step")} - {step_data.get("progress")}%")
+            print(f"📝 Histórico de processo '{process_id}' atualizado: {step}")
             
         except Exception as e:
             print(f"❌ Erro ao salvar etapa do processo: {e}")
     
-    def save_notification(self, user_id: str, notification_data: Dict):
+    async def create_notification(self, db_manager: DatabaseConnection, user_id: str, title: str, message: str, notification_type: str, metadata: dict):
         """Salva notificação para visualização offline."""
-        if not self.client:
-            return
+        if not db_manager.db: return None
             
         try:
             notification = {
                 "user_id": user_id,
-                "type": notification_data.get("type", "info"),
-                "title": notification_data.get("title", ""),
-                "message": notification_data.get("message", ""),
-                "data": notification_data.get("data", {}),
+                "type": notification_type,
+                "title": title,
+                "message": message,
+                "metadata": metadata,
                 "timestamp": datetime.utcnow(),
                 "read": False,
-                "process_id": notification_data.get("process_id")
             }
             
-            result = self.notifications_collection.insert_one(notification)
-            print(f"🔔 Notificação salva: {notification['title']}")
+            result = await db_manager.db.notifications.insert_one(notification)
+            print(f"🔔 Notificação salva para {user_id}: {title}")
             return str(result.inserted_id)
             
         except Exception as e:
             print(f"❌ Erro ao salvar notificação: {e}")
             return None
     
-    async def get_user_notifications(self, user_id: str, limit: int = 50, skip: int = 0) -> List[Dict]:
+    async def get_user_notifications(self, db_manager: DatabaseConnection, user_id: str, limit: int = 50, skip: int = 0) -> List[Dict]:
         """Recupera notificações do usuário."""
-        if not self.client:
-            return []
+        if not db_manager.db: return []
             
         try:
-            notifications = list(
-                self.notifications_collection
-                .find({"user_id": user_id})
-                .sort("timestamp", -1)
-                .skip(skip)
-                .limit(limit)
-            )
+            cursor = db_manager.db.notifications.find({"user_id": user_id}).sort("timestamp", -1).skip(skip).limit(limit)
+            notifications = await cursor.to_list(length=limit)
             
-            # Converte ObjectId para string
-            for notification in notifications:
-                notification["_id"] = str(notification["_id"])
-                notification["timestamp"] = notification["timestamp"].isoformat()
+            for n in notifications:
+                n["id"] = str(n.pop("_id"))
+                n["timestamp"] = n["timestamp"].isoformat()
             
             return notifications
             
@@ -94,35 +83,16 @@ class NotificationService:
             print(f"❌ Erro ao recuperar notificações: {e}")
             return []
     
-    async def get_process_history(self, user_id: str, process_id: str = None, limit: int = 20, skip: int = 0) -> List[Dict]:
+    async def get_process_history(self, db_manager: DatabaseConnection, user_id: str, limit: int = 20, skip: int = 0) -> List[Dict]:
         """Recupera histórico de processos do usuário."""
-        if not self.client:
-            return []
+        if not db_manager.db: return []
             
         try:
-            query = {"user_id": user_id}
-            if process_id:
-                query["process_id"] = process_id
+            cursor = db_manager.db.process_history.find({"user_id": user_id}).sort("timestamp", -1).skip(skip).limit(limit)
+            history = await cursor.to_list(length=limit)
             
-            # Agrega para obter o último status de cada processo
-            pipeline = [
-                {"$match": query},
-                {"$sort": {"timestamp": -1}},
-                {"$group": {
-                    "_id": "$process_id",
-                    "latest_record": {"$first": "$$ROOT"}
-                }},
-                {"$replaceRoot": {"newRoot": "$latest_record"}},
-                {"$sort": {"timestamp": -1}},
-                {"$limit": limit},
-                {"$skip": skip}
-            ]
-            
-            history = list(self.process_history_collection.aggregate(pipeline))
-            
-            # Converte ObjectId para string e formata timestamp
             for record in history:
-                record["_id"] = str(record["_id"])
+                record["id"] = str(record.pop("_id"))
                 record["timestamp"] = record["timestamp"].isoformat()
             
             return history
@@ -131,69 +101,37 @@ class NotificationService:
             print(f"❌ Erro ao recuperar histórico: {e}")
             return []
     
-    async def mark_notifications_as_read(self, user_id: str, notification_ids: List[str] = None):
+    async def mark_notifications_as_read(self, db_manager: DatabaseConnection, user_id: str, notification_ids: List[str] = None):
         """Marca notificações como lidas."""
-        if not self.client:
-            return
+        if not db_manager.db: return 0
             
         try:
-            query = {"user_id": user_id}
+            query = {"user_id": user_id, "read": False}
             if notification_ids:
-                from bson import ObjectId
                 query["_id"] = {"$in": [ObjectId(nid) for nid in notification_ids]}
             
-            result = self.notifications_collection.update_many(
-                query,
-                {"$set": {"read": True}}
-            )
+            result = await db_manager.db.notifications.update_many(query, {"$set": {"read": True}})
             
-            print(f"✅ {result.modified_count} notificações marcadas como lidas")
+            print(f"✅ {result.modified_count} notificações marcadas como lidas para {user_id}")
             return result.modified_count
             
         except Exception as e:
             print(f"❌ Erro ao marcar notificações como lidas: {e}")
             return 0
     
-    async def get_unread_count(self, user_id: str) -> int:
+    async def get_unread_count(self, db_manager: DatabaseConnection, user_id: str) -> int:
         """Retorna quantidade de notificações não lidas."""
-        if not self.client:
-            return 0
+        if not db_manager.db: return 0
             
         try:
-            count = self.notifications_collection.count_documents({
-                "user_id": user_id,
-                "read": False
-            })
+            count = await db_manager.db.notifications.count_documents({"user_id": user_id, "read": False})
             return count
-            
         except Exception as e:
             print(f"❌ Erro ao contar notificações não lidas: {e}")
             return 0
-    
-    def cleanup_old_data(self, days_old: int = 30):
-        """Remove dados antigos para manter o banco limpo."""
-        if not self.client:
-            return
-            
-        try:
-            from datetime import timedelta
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
-            
-            # Remove notificações antigas
-            notifications_result = self.notifications_collection.delete_many({
-                "timestamp": {"$lt": cutoff_date}
-            })
-            
-            # Remove histórico antigo
-            history_result = self.process_history_collection.delete_many({
-                "timestamp": {"$lt": cutoff_date}
-            })
-            
-            print(f"🧹 Limpeza: {notifications_result.deleted_count} notificações e {history_result.deleted_count} registros de histórico removidos")
-            
-        except Exception as e:
-            print(f"❌ Erro na limpeza de dados antigos: {e}")
 
-# Instância global do serviço
+# ================== INÍCIO DA CORREÇÃO ==================
+# A instância global continua, mas agora ela é "burra", não cria mais uma conexão.
+# Ela apenas espera que o db_manager seja passado para seus métodos.
 notification_service = NotificationService()
-
+# =================== FIM DA CORREÇÃO ====================
