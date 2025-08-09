@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from models.mongo_models import MongoUser, generate_token, verify_token
+from src.models.mongo_models import MongoUser, generate_token, verify_token
 # ================== INÍCIO DA CORREÇÃO ==================
 # O Recepcionista agora precisa saber como pedir acesso ao Gerente do Cofre.
-from database import get_database, DatabaseConnection
+from src.database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
 
 # --- Modelos Pydantic para Validação de Entrada ---

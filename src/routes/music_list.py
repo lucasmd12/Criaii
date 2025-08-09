@@ -8,7 +8,7 @@ from models.mongo_models import MongoMusic
 # from database import db_connection 
 
 # ADICIONAMOS a forma correta de pedir acesso ao "Gerente do Cofre".
-from database import get_database, DatabaseConnection
+from src.database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---

@@ -8,7 +8,7 @@ from services.music_generation_service import MusicGenerationService
 from .user import get_current_user_id
 # ================== INÍCIO DA CORREÇÃO ==================
 # O Garçom precisa saber como pedir acesso ao Gerente do Cofre para entregar à Cozinha.
-from database import get_database, DatabaseConnection
+from src.database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---
