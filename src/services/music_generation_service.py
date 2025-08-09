@@ -14,7 +14,7 @@ from services.cloudinary_service import CloudinaryService
 from routes.music_list import add_generated_music
 # ================== INÍCIO DA CORREÇÃO ==================
 # A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
-from database import DatabaseConnection
+from src.database.database import DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
 
 class MusicGenerationService:
