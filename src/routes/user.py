@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from ..models.mongo_models import MongoUser, generate_token, verify_token
+# =================================================================
+# CORREÇÃO APLICADA AQUI: De '..' para '.' ou, neste caso, sem pontos.
+# =================================================================
+from models.mongo_models import MongoUser, generate_token, verify_token
 
 # --- Modelos Pydantic para Validação de Entrada ---
 class UserCreate(BaseModel):
