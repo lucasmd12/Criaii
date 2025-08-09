@@ -1,4 +1,4 @@
-# src/models/mongo_models.py (As Receitas e os Clientes)
+# src/models/mongo_models.py (Versão Corrigida)
 
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,18 +6,13 @@ from datetime import datetime, timedelta
 import jwt
 from bson import ObjectId
 
-# ================== INÍCIO DA CORREÇÃO ==================
-# REMOVEMOS COMPLETAMENTE a lógica de conexão com o banco de dados daqui.
-# Este arquivo não deve mais gerenciar a conexão. Ele apenas define
-# como interagir com o banco de dados, uma vez que a conexão seja fornecida.
-# A importação de DatabaseConnection foi removida para evitar ciclos.
-# As anotações de tipo para db_manager também foram removidas para evitar
-# a necessidade de importar DatabaseConnection aqui, quebrando o ciclo.
-# =================== FIM DA CORREÇÃO ====================
+# Importamos a classe de conexão para usar como "type hint" (dica de tipo).
+# Isso melhora a leitura do código e ajuda as ferramentas de desenvolvimento.
+from src.database.database import DatabaseConnection
 
 class MongoUser:
-    @staticmethod
-    async def create_user(db_manager, username, password):
+    @classmethod
+    async def create_user(cls, db_manager: DatabaseConnection, username: str, password: str):
         """Cria um novo usuário, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db:
             print("⚠️ Gerente indisponível, operação de criar usuário não realizada.")
@@ -37,20 +32,21 @@ class MongoUser:
         user_data["_id"] = result.inserted_id
         return user_data
     
-    @staticmethod
-    async def find_by_username(db_manager, username):
+    @classmethod
+    async def find_by_username(cls, db_manager: DatabaseConnection, username: str):
         """Busca usuário por username, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db: 
             return None
         return await db_manager.db.users.find_one({"username": username})
     
-    @staticmethod
-    async def find_by_id(db_manager, user_id):
+    @classmethod
+    async def find_by_id(cls, db_manager: DatabaseConnection, user_id: str):
         """Busca usuário por ID, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db: 
             return None
         return await db_manager.db.users.find_one({"_id": ObjectId(user_id)})
     
+    # Métodos que não acessam o DB podem continuar como estáticos, pois não dependem da classe.
     @staticmethod
     def check_password(user, password):
         """Verifica se a senha está correta (não precisa de acesso ao DB)."""
@@ -68,8 +64,8 @@ class MongoUser:
         }
 
 class MongoMusic:
-    @staticmethod
-    async def create_music(db_manager, user_id, music_data):
+    @classmethod
+    async def create_music(cls, db_manager: DatabaseConnection, user_id: str, music_data: dict):
         """Cria uma nova música, registrando no cofre fornecido pelo Gerente."""
         if not db_manager.db:
             print("⚠️ Gerente indisponível, operação de criar música não realizada.")
@@ -91,16 +87,16 @@ class MongoMusic:
         music_doc["_id"] = result.inserted_id
         return music_doc
     
-    @staticmethod
-    async def find_by_user(db_manager, user_id):
+    @classmethod
+    async def find_by_user(cls, db_manager: DatabaseConnection, user_id: str):
         """Busca músicas de um usuário, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db: 
             return []
         cursor = db_manager.db.musics.find({"userId": user_id}).sort("created_at", -1)
         return await cursor.to_list(length=None)
     
-    @staticmethod
-    async def find_all(db_manager):
+    @classmethod
+    async def find_all(cls, db_manager: DatabaseConnection):
         """Busca todas as músicas, usando o cofre fornecido pelo Gerente."""
         if not db_manager.db: 
             return []
@@ -126,7 +122,7 @@ class MongoMusic:
 
 # As funções de token não dependem do banco de dados, então podem continuar como estão.
 def generate_token(user_id):
-    """Gera token JWT para o usuário"""
+    # ... (código igual)
     payload = {
         'user_id': str(user_id),
         'exp': datetime.utcnow() + timedelta(days=7)
@@ -134,7 +130,7 @@ def generate_token(user_id):
     return jwt.encode(payload, os.getenv('SECRET_KEY', 'alquimista-musical-secret-key-2024'), algorithm='HS256')
 
 def verify_token(token):
-    """Verifica se o token JWT é válido"""
+    # ... (código igual)
     try:
         payload = jwt.decode(token, os.getenv('SECRET_KEY', 'alquimista-musical-secret-key-2024'), algorithms=['HS256'])
         return payload['user_id']
@@ -142,4 +138,3 @@ def verify_token(token):
         return None
     except jwt.InvalidTokenError:
         return None
-
