@@ -132,11 +132,40 @@ const MusicGenerator = ({ user, onLogout }) => {
     };
   }, [user.id]);
 
-  // Carrega músicas do usuário
+  // Carrega músicas do usuário e notificações
   useEffect(() => {
     loadUserMusics();
     loadNotifications();
+    loadProcessHistory(); // Adicionado para carregar o histórico de processos
   }, [user]);
+
+  const loadProcessHistory = async () => {
+    try {
+      const token = localStorage.getItem('alquimista_token');
+      const response = await fetch('/api/notifications/process-history', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Encontra o processo mais recente em andamento, se houver
+        const latestProcess = data.history.find(p => p.status === 'in_progress' || p.status === 'pending');
+        if (latestProcess) {
+          setProgress(latestProcess.progress);
+          setCurrentStep(latestProcess.step);
+          setCurrentMessage(latestProcess.message);
+          setEstimatedTime(latestProcess.estimated_time);
+          setProcessId(latestProcess.process_id);
+          setIsGenerating(true); // Indica que há um processo em andamento
+        }
+      } else {
+        console.error("Falha ao carregar histórico de processos.");
+      }
+    } catch (error) {
+      console.error('Erro ao carregar histórico de processos:', error);
+    }
+  };
 
   const resetProgress = () => {
     setProgress(0);
@@ -144,6 +173,7 @@ const MusicGenerator = ({ user, onLogout }) => {
     setCurrentMessage('');
     setEstimatedTime(null);
     setProcessId(null);
+    setIsGenerating(false); // Garante que o estado de geração seja resetado
   };
 
   const loadUserMusics = async () => {
