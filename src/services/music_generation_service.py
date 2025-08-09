@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI - Dependência circular resolvida
+# Versão: Final por Manus AI - Corrigido erro de importação tardia
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -9,18 +9,15 @@ from typing import Optional, Tuple
 import os
 
 import numpy as np
-from gradio_client import Client, Job
+# ================== INÍCIO DA CORREÇÃO FINAL ==================
+# A importação do 'Job' foi removida do escopo global para evitar
+# erros de inicialização. Apenas o 'Client' é importado aqui.
+from gradio_client import Client
+# =================== FIM DA CORREÇÃO FINAL ====================
 
 from services.cloudinary_service import CloudinaryService
-# ================== INÍCIO DA CORREÇÃO ==================
-# REMOVEMOS a importação que causava o ciclo de dependência.
-# from routes.music_list import add_generated_music
-
-# ADICIONAMOS a importação correta, apontando para a camada de modelos.
 # O Chef agora sabe que a função de arquivamento pertence ao Livro de Receitas (MongoMusic).
 from src.models.mongo_models import MongoMusic
-# =================== FIM DA CORREÇÃO ====================
-
 # A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
 from src.database.database import DatabaseConnection
 
@@ -209,11 +206,17 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
+            # ================== INÍCIO DA CORREÇÃO FINAL ==================
+            # A importação do 'Job' é feita aqui, dentro da função, no exato
+            # momento em que é necessária. Isso resolve o erro de inicialização.
+            from gradio_client.client import Job
+
             job: Optional[Job] = self.client.submit(
                 full_prompt,
                 voice_sample_path,
                 api_name="/predict"
             )
+            # =================== FIM DA CORREÇÃO FINAL ====================
 
             if not job:
                 raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
@@ -236,7 +239,6 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
             
-            # ================== INÍCIO DA CORREÇÃO ==================
             # O Chef agora chama o método correto da classe MongoMusic para arquivar o prato.
             await MongoMusic.add_generated_music(db_manager, {
                 "userId": user_id,
@@ -247,7 +249,6 @@ class MusicGenerationService:
                 "genre": genre,
                 "lyrics": lyrics
             })
-            # =================== FIM DA CORREÇÃO ====================
             
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
