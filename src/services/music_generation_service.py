@@ -59,7 +59,7 @@ class MusicGenerationService:
                         user_id=user_id,
                         process_id=process_id,
                         step=step,
-                        status=\'in_progress\',
+                        status='in_progress', # CORRIGIDO
                         message=message
                     )
             except Exception as e:
@@ -77,16 +77,16 @@ class MusicGenerationService:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step=\'completed\',
-                        status=\'success\',
-                        message=f"Música \'{music_name}\' criada com sucesso"
+                        step='completed', # CORRIGIDO
+                        status='success', # CORRIGIDO
+                        message=f"Música '{music_name}' criada com sucesso"
                     )
                     await self.notification_service.create_notification(
                         user_id=user_id,
                         title="🎵 Música Pronta!",
-                        message=f"Sua música \'{music_name}\' foi criada com sucesso e está pronta para download.",
+                        message=f"Sua música '{music_name}' foi criada com sucesso e está pronta para download.",
                         notification_type="success",
-                        metadata={\'music_url\': music_url, \'music_name\': music_name}
+                        metadata={'music_url': music_url, 'music_name': music_name}
                     )
             except Exception as e:
                 print(f"⚠️ Erro ao emitir conclusão via WebSocket: {e}")
@@ -102,8 +102,8 @@ class MusicGenerationService:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step=\'error\',
-                        status=\'failed\',
+                        step='error', # CORRIGIDO
+                        status='failed', # CORRIGIDO
                         message=error_message
                     )
                     await self.notification_service.create_notification(
@@ -111,7 +111,7 @@ class MusicGenerationService:
                         title="❌ Erro na Geração",
                         message=f"Ocorreu um erro ao gerar sua música: {error_message}",
                         notification_type="error",
-                        metadata={\'error\': error_message}
+                        metadata={'error': error_message}
                     )
             except Exception as e:
                 print(f"⚠️ Erro ao emitir erro via WebSocket: {e}")
@@ -196,15 +196,9 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            # --- CORREÇÃO APLICADA AQUI: Usando client.submit() para chamada assíncrona --- 
-            # O Garçom agora entrega o pedido e continua a fazer outras coisas, 
-            # verificando o status do prato periodicamente. Isso evita timeouts.
             job = self.client.submit(full_prompt, voice_sample_path)
             
-            # Espera pelo resultado com um timeout maior, para dar tempo à Cozinha.
-            # O timeout aqui é para o backend não ficar esperando indefinidamente, 
-            # mas o processo na Cozinha continua mesmo que o backend atinja o timeout.
-            result = job.result(timeout=300) # Aumentado para 5 minutos (300 segundos)
+            result = job.result(timeout=300)
             
             if not result:
                 raise Exception("Falha na geração da música")
@@ -235,13 +229,13 @@ class MusicGenerationService:
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
             if self.notification_service:
-                self.notification_service.complete_process(process_id, True, f"Música \'{music_name}\' criada com sucesso")
+                self.notification_service.complete_process(process_id, True, f"Música '{music_name}' criada com sucesso")
             
             return {
                 "success": True,
                 "music_url": music_url,
                 "music_name": music_name,
-                "message": f"Música \'{music_name}\' gerada com sucesso!"
+                "message": f"Música '{music_name}' gerada com sucesso!"
             }
             
         except Exception as e:
@@ -292,7 +286,7 @@ class MusicGenerationService:
     def _call_huggingface_api(self, prompt: str, voice_sample_path: Optional[str] = None) -> Optional[Tuple[int, np.ndarray]]:
         """
         Chama a API do Hugging Face para gerar música.
-        Esta é a versão corrigida, sem o parâmetro \'api_name\'.
+        Esta é a versão corrigida, sem o parâmetro 'api_name'.
         """
         try:
             if voice_sample_path:
@@ -310,5 +304,3 @@ class MusicGenerationService:
 
 # Instância global do serviço
 music_generation_service = MusicGenerationService()
-
-
