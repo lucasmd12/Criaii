@@ -32,7 +32,7 @@ class ProcessHistoryResponse(BaseModel):
 # ROTAS DE NOTIFICAÇÕES
 # =================================================================
 
-@notifications_router.get("/", response_model=List[NotificationResponse])
+@notifications_router.get("/")
 async def get_notifications(
     user_id: str = Depends(get_current_user_id),
     limit: int = Query(50, ge=1, le=100),
@@ -47,7 +47,7 @@ async def get_notifications(
             limit=limit,
             skip=skip
         )
-        return notifications
+        return {"notifications": notifications, "unread_count": await notification_service.get_unread_count(user_id)}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -79,9 +79,9 @@ async def mark_notifications_as_read(
     """
     try:
         if notification_ids:
-            await notification_service.mark_notifications_read(user_id, notification_ids)
+            await notification_service.mark_notifications_as_read(user_id, notification_ids)
         else:
-            await notification_service.mark_all_notifications_read(user_id)
+            await notification_service.mark_notifications_as_read(user_id)
         
         return {"message": "Notificações marcadas como lidas"}
     except Exception as e:
@@ -90,7 +90,7 @@ async def mark_notifications_as_read(
             detail=f"Erro ao marcar notificações: {str(e)}"
         )
 
-@notifications_router.get("/process-history", response_model=List[ProcessHistoryResponse])
+@notifications_router.get("/process-history")
 async def get_process_history(
     user_id: str = Depends(get_current_user_id),
     limit: int = Query(20, ge=1, le=50),
@@ -105,7 +105,7 @@ async def get_process_history(
             limit=limit,
             skip=skip
         )
-        return history
+        return {"history": history}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
