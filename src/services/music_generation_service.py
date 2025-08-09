@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI - api_name integrado
+# Versão: Corrigida por Manus AI - api_name integrado e erros de sintaxe resolvidos
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -54,14 +54,16 @@ class MusicGenerationService:
                     message=message,
                     estimated_time=estimated_time
                 )
+                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
                         step=step,
-                        status=\'in_progress\',
+                        status='in_progress',  # CORRIGIDO: Removida a barra e usadas aspas simples
                         message=message
                     )
+                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir progresso via WebSocket: {e}")
 
@@ -73,21 +75,23 @@ class MusicGenerationService:
                     music_name=music_name,
                     music_url=music_url
                 )
+                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step=\'completed\',
-                        status=\'success\',
-                        message=f"Música \'{music_name}\' criada com sucesso"
+                        step='completed',      # CORRIGIDO
+                        status='success',      # CORRIGIDO
+                        message=f"Música '{music_name}' criada com sucesso"
                     )
                     await self.notification_service.create_notification(
                         user_id=user_id,
                         title="🎵 Música Pronta!",
-                        message=f"Sua música \'{music_name}\' foi criada com sucesso e está pronta para download.",
+                        message=f"Sua música '{music_name}' foi criada com sucesso e está pronta para download.",
                         notification_type="success",
-                        metadata={\'music_url\': music_url, \'music_name\': music_name}
+                        metadata={'music_url': music_url, 'music_name': music_name}
                     )
+                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir conclusão via WebSocket: {e}")
 
@@ -98,12 +102,13 @@ class MusicGenerationService:
                     user_id=user_id,
                     error_message=error_message
                 )
+                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step=\'error\',
-                        status=\'failed\',
+                        step='error',          # CORRIGIDO
+                        status='failed',       # CORRIGIDO
                         message=error_message
                     )
                     await self.notification_service.create_notification(
@@ -111,8 +116,9 @@ class MusicGenerationService:
                         title="❌ Erro na Geração",
                         message=f"Ocorreu um erro ao gerar sua música: {error_message}",
                         notification_type="error",
-                        metadata={\'error\': error_message}
+                        metadata={'error': error_message}
                     )
+                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir erro via WebSocket: {e}")
 
@@ -196,13 +202,10 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            # =================================================================
-            # CORREÇÃO APLICADA PARA RESOLVER O ERRO DE MÚLTIPLOS ENDPOINTS
-            # =================================================================
             job = self.client.submit(
                 full_prompt,
                 voice_sample_path,
-                api_name="/predict"  # Especifica qual endpoint da "Cozinha" chamar
+                api_name="/predict"
             )
             
             result = job.result(timeout=300)
@@ -236,13 +239,13 @@ class MusicGenerationService:
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
             if self.notification_service:
-                self.notification_service.complete_process(process_id, True, f"Música \'{music_name}\' criada com sucesso")
+                self.notification_service.complete_process(process_id, True, f"Música '{music_name}' criada com sucesso")
             
             return {
                 "success": True,
                 "music_url": music_url,
                 "music_name": music_name,
-                "message": f"Música \'{music_name}\' gerada com sucesso!"
+                "message": f"Música '{music_name}' gerada com sucesso!"
             }
             
         except Exception as e:
@@ -293,7 +296,7 @@ class MusicGenerationService:
     def _call_huggingface_api(self, prompt: str, voice_sample_path: Optional[str] = None) -> Optional[Tuple[int, np.ndarray]]:
         """
         Chama a API do Hugging Face para gerar música.
-        Esta é a versão corrigida, sem o parâmetro \'api_name\'.
+        Esta é a versão corrigida, sem o parâmetro 'api_name'.
         """
         try:
             if voice_sample_path:
@@ -311,5 +314,3 @@ class MusicGenerationService:
 
 # Instância global do serviço
 music_generation_service = MusicGenerationService()
-
-
