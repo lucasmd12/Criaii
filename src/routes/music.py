@@ -3,9 +3,8 @@
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Depends, Form, UploadFile, File
 from typing import Optional, Literal
 
-# --- CORREÇÃO DE IMPORTAÇÃO ---
-from ..services.music_generation_service import MusicGenerationService
-from .user import get_current_user_id
+from services.music_generation_service import MusicGenerationService
+from routes.user import get_current_user_id
 
 # --- Router do FastAPI ---
 music_router = APIRouter()
