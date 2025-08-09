@@ -1,9 +1,9 @@
 # src/routes/music_list.py (O Maître e Arquivista)
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from .user import get_current_user_id 
-from ..models.mongo_models import MongoMusic
-from ..database import db_connection
+from routes.user import get_current_user_id 
+from models.mongo_models import MongoMusic
+from database import db_connection
 
 # --- Router do FastAPI ---
 music_list_router = APIRouter()
