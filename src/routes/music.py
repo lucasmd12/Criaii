@@ -6,6 +6,10 @@ from typing import Optional, Literal
 # --- CORREÇÃO DE IMPORTAÇÃO ---
 from services.music_generation_service import MusicGenerationService
 from .user import get_current_user_id
+# ================== INÍCIO DA CORREÇÃO ==================
+# O Garçom precisa saber como pedir acesso ao Gerente do Cofre para entregar à Cozinha.
+from database import get_database, DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---
 music_router = APIRouter()
@@ -17,6 +21,10 @@ music_generator = MusicGenerationService()
 async def generate_music(
     background_tasks: BackgroundTasks,
     current_user_id: str = Depends(get_current_user_id),
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # O Garçom agora também pega a "chave do cofre" (db_manager) para a Cozinha usar mais tarde.
+    db_manager: DatabaseConnection = Depends(get_database),
+    # =================== FIM DA CORREÇÃO ====================
     
     # Campos obrigatórios
     description: str = Form(..., description="Descrição/prompt da música (essência)"),
@@ -42,7 +50,7 @@ async def generate_music(
     print(f"\n👨‍🍳 Garçom: Anotando um novo pedido do cliente {current_user_id} para a música \'{musicName}\'.")
     
     try:
-        # Garçom confere se o pedido mínimo foi feito
+        # ... (toda a sua lógica de validação permanece exatamente a mesma) ...
         if not description.strip():
             print(f"⚠️ Garçom: Pedido inválido do cliente {current_user_id}. Faltou a descrição.")
             raise HTTPException(
@@ -57,7 +65,6 @@ async def generate_music(
                 detail="O nome da música é obrigatório para fazer o pedido."
             )
         
-        # Garçom verifica o ingrediente especial (amostra de voz)
         if voiceSample:
             print(f"🎤 Garçom: Cliente forneceu um ingrediente especial (amostra de voz: {voiceSample.filename}). Verificando a qualidade...")
             if voiceSample.size > 50 * 1024 * 1024: # 50MB
@@ -75,7 +82,6 @@ async def generate_music(
                     detail="Este tipo de ingrediente especial (formato de áudio) não é aceito pela nossa cozinha. Use MP3, WAV, M4A, OGG ou FLAC."
                 )
         
-        # Garçom prepara a comanda final para a Cozinha
         music_data = {
             "description": description.strip(),
             "musicName": musicName.strip(),
@@ -90,13 +96,16 @@ async def generate_music(
         
         print(f"✅ Garçom: Comanda para \'{musicName}\' pronta! Enviando para a Cozinha em segundo plano.")
         
-        # Garçom leva o pedido para a Cozinha e volta para atender outros clientes
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # O Garçom agora entrega a chave do cofre (db_manager) junto com o pedido.
         background_tasks.add_task(
             music_generator.generate_music_async,
+            db_manager=db_manager, # <--- MUDANÇA IMPORTANTE
             music_data=music_data,
             voice_file=voiceSample,
             user_id=current_user_id
         )
+        # =================== FIM DA CORREÇÃO ====================
         
         print(f"👍 Garçom: Pedido da música \'{musicName}\' foi entregue na Cozinha. Informando o cliente.")
         
@@ -109,7 +118,7 @@ async def generate_music(
         }
         
     except HTTPException:
-        raise # Re-levanta exceções HTTP para que o FastAPI as manipule
+        raise
     except Exception as e:
         print(f"🚨 Garçom: Houve um grande problema ao tentar anotar o pedido: {str(e)}")
         raise HTTPException(
