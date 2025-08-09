@@ -50,5 +50,6 @@ gradio_client
 numpy
 scipy
 soundfile
+motor
 
 
