@@ -1,7 +1,7 @@
 # src/routes/music_list.py (O Maître e Arquivista)
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from routes.user import get_current_user_id 
+from .user import get_current_user_id 
 from models.mongo_models import MongoMusic
 from database import db_connection
 
@@ -88,3 +88,4 @@ def add_generated_music(music_data):
     except Exception as error:
         print(f"🚨 Arquivista: Falha crítica ao tentar registrar o prato '{music_name_for_log}' no livro de receitas: {error}")
         return None
+
