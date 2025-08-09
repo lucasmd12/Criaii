@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional
 from pydantic import BaseModel
 
-from .user import get_current_user_id
-from ..models.notification_models import notification_service
+from routes.user import get_current_user_id
+from models.notification_models import notification_service
 
 # --- Router do FastAPI ---
 notifications_router = APIRouter()
