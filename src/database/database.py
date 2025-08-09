@@ -1,4 +1,4 @@
-# src/database.py (O Gerente do Cofre)
+# src/database/database.py (O Gerente do Cofre) - Versão Corrigida
 
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -56,7 +56,9 @@ class DatabaseConnection:
     async def find_documents(self, collection_name: str, query: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Supervisiona a busca por registros em uma coleção (gaveta do arquivo)."""
         print(f"🧐 Gerente do Cofre: Supervisionando busca na gaveta '{collection_name}' com a consulta: {query}")
-        if not self.db:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if self.db is None:
+        # =================== FIM DA CORREÇÃO ====================
             print(f"🚫 Gerente do Cofre: Acesso negado! O cofre está fechado.")
             return []
         collection = self.db[collection_name]
@@ -68,7 +70,9 @@ class DatabaseConnection:
     async def insert_document(self, collection_name: str, document: Dict[str, Any]) -> Any:
         """Supervisiona a inserção de um novo registro em uma coleção."""
         print(f"✍️ Gerente do Cofre: Supervisionando a adição de um novo registro na gaveta '{collection_name}'.")
-        if not self.db:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if self.db is None:
+        # =================== FIM DA CORREÇÃO ====================
             print(f"🚫 Gerente do Cofre: Acesso negado! O cofre está fechado.")
             return None
         collection = self.db[collection_name]
@@ -90,7 +94,11 @@ db_manager = DatabaseConnection()
 # O FastAPI vai garantir que o gerente esteja pronto antes de entregar o acesso.
 async def get_database() -> DatabaseConnection:
     """Função para os outros serviços 'pedirem' acesso ao Gerente do Cofre."""
-    if not db_manager.db:
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # Esta é a linha que causou o erro no log do Render.
+    # Trocamos 'if not db_manager.db:' por 'if db_manager.db is None:'
+    if db_manager.db is None:
+    # =================== FIM DA CORREÇÃO ====================
         # Isso garante que, mesmo que algo falhe no startup, ele tente reconectar.
         await db_manager.connect()
     return db_manager
