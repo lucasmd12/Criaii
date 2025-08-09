@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI - Tratamento de erro pontual adicionado
+# Versão: Corrigida por Manus AI - Dependência circular resolvida
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -12,7 +12,15 @@ import numpy as np
 from gradio_client import Client, Job
 
 from services.cloudinary_service import CloudinaryService
-from routes.music_list import add_generated_music
+# ================== INÍCIO DA CORREÇÃO ==================
+# REMOVEMOS a importação que causava o ciclo de dependência.
+# from routes.music_list import add_generated_music
+
+# ADICIONAMOS a importação correta, apontando para a camada de modelos.
+# O Chef agora sabe que a função de arquivamento pertence ao Livro de Receitas (MongoMusic).
+from src.models.mongo_models import MongoMusic
+# =================== FIM DA CORREÇÃO ====================
+
 # A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
 from src.database.database import DatabaseConnection
 
@@ -182,7 +190,6 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 10, "🔌 Conectando com a cozinha IA", "connecting", 170, process_id)
             if not self._connect_to_space():
-                # Mensagem de erro mais clara para o usuário
                 raise Exception("Falha ao conectar com o serviço de IA. Tente novamente mais tarde.")
             await asyncio.sleep(2)
             
@@ -202,21 +209,16 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            # ================== INÍCIO DA CORREÇÃO ==================
-            # O Chef agora envia o pedido e guarda o 'job' para verificação.
             job: Optional[Job] = self.client.submit(
                 full_prompt,
                 voice_sample_path,
                 api_name="/predict"
             )
 
-            # Ele verifica se o Forno Aliado aceitou o pedido antes de continuar.
             if not job:
                 raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
             
-            # O job.result() agora é chamado com a verificação já feita
             result = job.result(timeout=300)
-            # =================== FIM DA CORREÇÃO ====================
             
             if not result:
                 raise Exception("Falha na geração da música. O serviço de IA não retornou um resultado válido.")
@@ -234,7 +236,9 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
             
-            await add_generated_music(db_manager, {
+            # ================== INÍCIO DA CORREÇÃO ==================
+            # O Chef agora chama o método correto da classe MongoMusic para arquivar o prato.
+            await MongoMusic.add_generated_music(db_manager, {
                 "userId": user_id,
                 "musicName": music_name,
                 "description": description,
@@ -243,6 +247,7 @@ class MusicGenerationService:
                 "genre": genre,
                 "lyrics": lyrics
             })
+            # =================== FIM DA CORREÇÃO ====================
             
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
@@ -308,10 +313,8 @@ class MusicGenerationService:
         """
         try:
             if voice_sample_path:
-                # Com amostra de voz: envia o prompt e o caminho do arquivo.
                 result = self.client.predict(prompt, voice_sample_path, api_name="/predict")
             else:
-                # Sem amostra de voz: envia apenas o prompt.
                 result = self.client.predict(prompt, api_name="/predict")
             
             return result
