@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Final por Manus AI - Corrigido erro de importação tardia
+# Versão: Final por Manus AI - Corrigido erro de importação e adicionado tratamento de erro de comunicação
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -9,11 +9,9 @@ from typing import Optional, Tuple
 import os
 
 import numpy as np
-# ================== INÍCIO DA CORREÇÃO FINAL ==================
 # A importação do 'Job' foi removida do escopo global para evitar
 # erros de inicialização. Apenas o 'Client' é importado aqui.
 from gradio_client import Client
-# =================== FIM DA CORREÇÃO FINAL ====================
 
 from services.cloudinary_service import CloudinaryService
 # O Chef agora sabe que a função de arquivamento pertence ao Livro de Receitas (MongoMusic).
@@ -206,22 +204,29 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            # ================== INÍCIO DA CORREÇÃO FINAL ==================
-            # A importação do 'Job' é feita aqui, dentro da função, no exato
-            # momento em que é necessária. Isso resolve o erro de inicialização.
-            from gradio_client.client import Job
+            # ================== INÍCIO DA CORREÇÃO DE ROBUSTEZ ==================
+            try:
+                # A importação do 'Job' é feita aqui, dentro da função.
+                from gradio_client.client import Job
 
-            job: Optional[Job] = self.client.submit(
-                full_prompt,
-                voice_sample_path,
-                api_name="/predict"
-            )
-            # =================== FIM DA CORREÇÃO FINAL ====================
+                job: Optional[Job] = self.client.submit(
+                    full_prompt,
+                    voice_sample_path,
+                    api_name="/predict"
+                )
 
-            if not job:
-                raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
-            
-            result = job.result(timeout=300)
+                if not job:
+                    raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
+                
+                result = job.result(timeout=300)
+
+            except Exception as gradio_error:
+                # Se qualquer coisa der errado na comunicação com o Gradio (timeout, erro de rede, etc.),
+                # o Chef agora sabe como lidar com isso.
+                print(f"🚨 Erro de comunicação com o Forno Aliado (Gradio): {gradio_error}")
+                # Ele avisa o cliente com uma mensagem clara.
+                raise Exception("Houve um problema de comunicação com o serviço de IA. Por favor, tente novamente em alguns minutos.")
+            # =================== FIM DA CORREÇÃO DE ROBUSTEZ ====================
             
             if not result:
                 raise Exception("Falha na geração da música. O serviço de IA não retornou um resultado válido.")
@@ -239,7 +244,6 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
             
-            # O Chef agora chama o método correto da classe MongoMusic para arquivar o prato.
             await MongoMusic.add_generated_music(db_manager, {
                 "userId": user_id,
                 "musicName": music_name,
