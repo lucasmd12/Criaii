@@ -3,7 +3,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from .user import get_current_user_id 
 from models.mongo_models import MongoMusic
-from database import db_connection
+# ================== INÍCIO DA CORREÇÃO ==================
+# REMOVEMOS a importação direta e problemática.
+# from database import db_connection 
+
+# ADICIONAMOS a forma correta de pedir acesso ao "Gerente do Cofre".
+from database import get_database, DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---
 music_list_router = APIRouter()
@@ -11,11 +17,14 @@ music_list_router = APIRouter()
 # --- Rotas do Maître ---
 
 @music_list_router.get("/musics/{user_id}")
-async def get_user_musics(user_id: str):
+async def get_user_musics(user_id: str, db_manager: DatabaseConnection = Depends(get_database)):
     """Maître buscando o cardápio pessoal de um cliente específico."""
     print(f"🤵 Maître: Consultando o cardápio pessoal do cliente {user_id}.")
     try:
-        musics = await MongoMusic.find_by_user(user_id)
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Agora usamos o 'db_manager' que o FastAPI nos entregou.
+        musics = await MongoMusic.find_by_user(db_manager, user_id)
+        # =================== FIM DA CORREÇÃO ====================
         music_list = [MongoMusic.to_dict(music) for music in musics]
         print(f"✅ Maître: Encontrados {len(music_list)} pratos no cardápio do cliente {user_id}.")
         
@@ -29,7 +38,14 @@ async def get_user_musics(user_id: str):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema ao buscar o cardápio deste cliente.")
 
 @music_list_router.get("/musics")
-async def get_my_musics(request: Request, current_user_id: str = Depends(get_current_user_id)):
+async def get_my_musics(
+    request: Request, 
+    current_user_id: str = Depends(get_current_user_id),
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # O Maître agora pede acesso ao Gerente do Cofre diretamente ao FastAPI.
+    db_manager: DatabaseConnection = Depends(get_database)
+    # =================== FIM DA CORREÇÃO ====================
+):
     """Maître buscando pratos no cardápio para o cliente, aplicando seus filtros e preferências."""
     try:
         search_filter = {"userId": current_user_id}
@@ -49,11 +65,14 @@ async def get_my_musics(request: Request, current_user_id: str = Depends(get_cur
         
         print(f"🔍 Maître: Buscando no livro de receitas com os filtros: {search_filter}")
 
-        if not db_connection.db:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        if not db_manager.db:
             print("🚨 Maître: O livro de receitas (banco de dados) está inacessível no momento!")
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Nosso livro de receitas está temporariamente indisponível.")
             
-        cursor = db_connection.db.musics.find(search_filter)
+        # Usamos o 'db_manager' fornecido pelo Depends.
+        cursor = db_manager.db.musics.find(search_filter)
+        # =================== FIM DA CORREÇÃO ====================
         musics = await cursor.to_list(length=None)
         
         music_list = [MongoMusic.to_dict(music) for music in musics]
@@ -71,15 +90,21 @@ async def get_my_musics(request: Request, current_user_id: str = Depends(get_cur
 
 # --- Função do Arquivista ---
 
-def add_generated_music(music_data):
+# ================== INÍCIO DA CORREÇÃO ==================
+# O Arquivista agora precisa saber com qual 'Gerente' falar.
+# Passamos o 'db_manager' como um argumento.
+async def add_generated_music(db_manager: DatabaseConnection, music_data: dict):
+# =================== FIM DA CORREÇÃO ====================
     """Função para adicionar música gerada à lista"""
     music_name_for_log = music_data.get('musicName', 'Sem título')
     print(f"✍️ Arquivista: Recebendo um novo prato da cozinha para registrar: '{music_name_for_log}'.")
     try:
         user_id = music_data.get("userId")
         if user_id:
-            # Se create_music também for assíncrono, precisará de 'await' quando for chamado em uma função async
-            music = MongoMusic.create_music(user_id, music_data)
+            # ================== INÍCIO DA CORREÇÃO ==================
+            # Passamos o 'db_manager' para a função que cria a música.
+            music = await MongoMusic.create_music(db_manager, user_id, music_data)
+            # =================== FIM DA CORREÇÃO ====================
             print(f"✅ Arquivista: Prato '{music_name_for_log}' do cliente {user_id} foi registrado com sucesso no livro de receitas (MongoDB).")
             return music
         else:
@@ -88,4 +113,3 @@ def add_generated_music(music_data):
     except Exception as error:
         print(f"🚨 Arquivista: Falha crítica ao tentar registrar o prato '{music_name_for_log}' no livro de receitas: {error}")
         return None
-
