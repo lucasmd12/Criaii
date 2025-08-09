@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Corrigida por Manus AI - api_name integrado e erros de sintaxe resolvidos
+# Versão: Corrigida por Manus AI - Integração completa do Gerente do Cofre (db_manager)
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -12,8 +12,13 @@ from gradio_client import Client
 
 from services.cloudinary_service import CloudinaryService
 from routes.music_list import add_generated_music
+# ================== INÍCIO DA CORREÇÃO ==================
+# A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
+from database import DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
 class MusicGenerationService:
+    # ... (o __new__ e o __init__ continuam exatamente iguais) ...
     _instance = None
 
     def __new__(cls):
@@ -44,6 +49,7 @@ class MusicGenerationService:
         except ImportError:
             print("⚠️ Notification service não disponível")
 
+    # ... (as funções _emit_* continuam exatamente iguais) ...
     async def _emit_progress(self, user_id: str, progress: int, message: str, step: str = "", estimated_time: int = None, process_id: str = None):
         if self.websocket_service:
             try:
@@ -54,16 +60,14 @@ class MusicGenerationService:
                     message=message,
                     estimated_time=estimated_time
                 )
-                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
                         step=step,
-                        status='in_progress',  # CORRIGIDO: Removida a barra e usadas aspas simples
+                        status='in_progress',
                         message=message
                     )
-                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir progresso via WebSocket: {e}")
 
@@ -75,13 +79,12 @@ class MusicGenerationService:
                     music_name=music_name,
                     music_url=music_url
                 )
-                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step='completed',      # CORRIGIDO
-                        status='success',      # CORRIGIDO
+                        step='completed',
+                        status='success',
                         message=f"Música '{music_name}' criada com sucesso"
                     )
                     await self.notification_service.create_notification(
@@ -91,7 +94,6 @@ class MusicGenerationService:
                         notification_type="success",
                         metadata={'music_url': music_url, 'music_name': music_name}
                     )
-                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir conclusão via WebSocket: {e}")
 
@@ -102,13 +104,12 @@ class MusicGenerationService:
                     user_id=user_id,
                     error_message=error_message
                 )
-                # ================== INÍCIO DA CORREÇÃO ==================
                 if self.notification_service and process_id:
                     await self.notification_service.save_process_history(
                         user_id=user_id,
                         process_id=process_id,
-                        step='error',          # CORRIGIDO
-                        status='failed',       # CORRIGIDO
+                        step='error',
+                        status='failed',
                         message=error_message
                     )
                     await self.notification_service.create_notification(
@@ -118,7 +119,6 @@ class MusicGenerationService:
                         notification_type="error",
                         metadata={'error': error_message}
                     )
-                # =================== FIM DA CORREÇÃO ====================
             except Exception as e:
                 print(f"⚠️ Erro ao emitir erro via WebSocket: {e}")
 
@@ -132,7 +132,10 @@ class MusicGenerationService:
             print(f"❌ Erro ao conectar ao espaço: {e}")
             return False
 
-    async def generate_music_async(self, music_data: dict, voice_file=None, user_id: str = None):
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # A Cozinha agora espera receber o 'db_manager' do Garçom.
+    async def generate_music_async(self, db_manager: DatabaseConnection, music_data: dict, voice_file=None, user_id: str = None):
+    # =================== FIM DA CORREÇÃO ====================
         try:
             voice_sample_path = None
             if voice_file:
@@ -141,7 +144,10 @@ class MusicGenerationService:
                     content = await voice_file.read()
                     f.write(content)
             
+            # ================== INÍCIO DA CORREÇÃO ==================
+            # Passa o 'db_manager' para a próxima função na cadeia.
             result = await self.generate_music(
+                db_manager=db_manager, # <--- PASSANDO ADIANTE
                 user_id=user_id or music_data.get("userId"),
                 description=music_data.get("description"),
                 music_name=music_data.get("musicName"),
@@ -153,6 +159,7 @@ class MusicGenerationService:
                 studio_type=music_data.get("studioType", "studio"),
                 voice_sample_path=voice_sample_path
             )
+            # =================== FIM DA CORREÇÃO ====================
             
             if voice_sample_path:
                 try:
@@ -168,13 +175,17 @@ class MusicGenerationService:
             await self._emit_error(user_id or music_data.get("userId"), str(e))
             return {"success": False, "error": str(e)}
 
-    async def generate_music(self, user_id: str, description: str, music_name: str, 
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # A função principal da Cozinha também precisa receber o 'db_manager'.
+    async def generate_music(self, db_manager: DatabaseConnection, user_id: str, description: str, music_name: str, 
                            voice_type: str = "instrumental", lyrics: str = "", 
                            genre: str = "", rhythm: str = "", instruments: str = "", 
                            studio_type: str = "studio", voice_sample_path: str = None):
+    # =================== FIM DA CORREÇÃO ====================
         process_id = f"music_{user_id}_{int(time.time())}"
         
         try:
+            # ... (toda a lógica de progresso e conexão com a IA continua a mesma) ...
             if self.notification_service:
                 self.notification_service.start_process_tracking(user_id, process_id, "music_generation")
             
@@ -226,7 +237,9 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
             
-            add_generated_music({
+            # ================== INÍCIO DA CORREÇÃO ==================
+            # Finalmente, a Cozinha entrega a chave do cofre para o Arquivista registrar a música.
+            await add_generated_music(db_manager, {
                 "userId": user_id,
                 "musicName": music_name,
                 "description": description,
@@ -235,6 +248,7 @@ class MusicGenerationService:
                 "genre": genre,
                 "lyrics": lyrics
             })
+            # =================== FIM DA CORREÇÃO ====================
             
             await self._emit_completion(user_id, music_name, music_url, process_id)
             
@@ -263,6 +277,7 @@ class MusicGenerationService:
                 "message": "Erro ao gerar música. Tente novamente."
             }
 
+    # ... (a função _build_prompt e _call_huggingface_api continuam exatamente iguais) ...
     def _build_prompt(self, description: str, voice_type: str, lyrics: str = "", 
                      genre: str = "", rhythm: str = "", instruments: str = "", 
                      studio_type: str = "studio") -> str:
