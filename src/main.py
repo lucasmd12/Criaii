@@ -12,7 +12,7 @@ import socketio
 load_dotenv()
 
 # =================================================================
-# IMPORTAÇÕES: Adicionada a importação do nosso novo arquivo de banco de dados
+# IMPORTAÇÕES: Corrigindo as importações do banco de dados
 # =================================================================
 from src.routes.user import user_router
 from src.routes.music import music_router
@@ -22,7 +22,10 @@ from src.services.firebase_service import FirebaseService
 from src.services.cloudinary_service import CloudinaryService
 from src.services.websocket_service import websocket_service
 from src.services.keep_alive_service import keep_alive_service
-from src.database import db_connection
+# ================== INÍCIO DA CORREÇÃO ==================
+# Importamos o nosso "Gerente do Cofre" e suas funções de controle.
+from src.database import db_manager
+# =================== FIM DA CORREÇÃO ====================
 
 # =================================================================
 # INÍCIO DA APLICAÇÃO FASTAPI
@@ -51,50 +54,55 @@ app.add_middleware(
 )
 
 # --- Integração do WebSocket ---
-socket_app = socketio.ASGIApp(websocket_service.sio, app)
+# A linha abaixo foi removida pois a variável 'application' no final já faz isso.
+# socket_app = socketio.ASGIApp(websocket_service.sio, app)
 
 # --- Evento de Startup ---
 @app.on_event("startup")
 async def on_startup():
-    print("🎵 Iniciando Alquimista Musical Backend...")
+    """O Gerente Geral abre o restaurante para o dia."""
+    print("☀️  Bom dia! Iniciando o Alquimista Musical Backend...")
     
-    # =================================================================
-    # CORREÇÃO: Conectar ao banco de dados como primeiro passo
-    # =================================================================
-    db_connection.connect()
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # O Gerente Geral manda o Gerente do Cofre abrir o cofre.
+    # Usamos 'await' porque a operação é assíncrona.
+    await db_manager.connect()
+    # =================== FIM DA CORREÇÃO ====================
     
-    print("🔧 Inicializando serviços externos...")
+    print("🔧  Inicializando serviços externos (Firebase, Cloudinary)...")
     FirebaseService.initialize()
     CloudinaryService.initialize()
     keep_alive_service.start()
     
-    print("🍃 Serviços externos inicializados.")
-    print("🔌 WebSocket configurado para comunicação em tempo real.")
-    print("🔄 Keep-alive ativo para manter a cozinha sempre pronta.")
-    print("🚀 Servidor FastAPI pronto.")
+    print("🍃  Serviços externos prontos.")
+    print("🔌  WebSocket configurado para comunicação em tempo real.")
+    print("🔄  Keep-alive ativo para manter a cozinha sempre pronta.")
+    print("🚀  Restaurante aberto! Servidor FastAPI pronto para receber clientes.")
 
 # --- Evento de Shutdown ---
 @app.on_event("shutdown")
 async def on_shutdown():
-    print("🛑 Parando serviços...")
+    """O Gerente Geral fecha o restaurante no final do dia."""
+    print("🌙  Boa noite! Encerrando os serviços...")
     keep_alive_service.stop()
     
-    # =================================================================
-    # CORREÇÃO: Desconectar do banco de dados ao desligar
-    # =================================================================
-    db_connection.disconnect()
+    # ================== INÍCIO DA CORREÇÃO ==================
+    # O Gerente Geral manda o Gerente do Cofre trancar tudo.
+    await db_manager.disconnect()
+    # =================== FIM DA CORREÇÃO ====================
     
-    print("✅ Serviços parados com segurança.")
+    print("✅  Restaurante fechado com segurança.")
 
 # --- Inclusão das Rotas da API ---
-app.include_router(user_router, prefix="/api", tags=["Usuários"])
-app.include_router(music_router, prefix="/api/music", tags=["Músicas"])
-app.include_router(music_list_router, prefix="/api/music", tags=["Playlists"])
-app.include_router(notifications_router, prefix="/api/notifications", tags=["Notificações"])
+app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
+app.include_router(music_router, prefix="/api/music", tags=["Garçom (Geração de Música)"])
+app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playlists)"])
+app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 
 # --- Rota de Health Check ---
 @app.get("/health")
 async def health_check():
+    # ... (seu código de health check continua o mesmo) ...
     keep_alive_status = keep_alive_service.get_status()
     return {
         "status": "healthy",
@@ -114,6 +122,7 @@ async def health_check():
 # --- Rota para informações do WebSocket ---
 @app.get("/api/websocket-info")
 async def websocket_info():
+    # ... (seu código de websocket-info continua o mesmo) ...
     return {
         "endpoint": "/socket.io/",
         "events": {
@@ -135,7 +144,7 @@ async def websocket_info():
 # =================================================================
 # LÓGICA PARA SERVIR O FRONTEND (React/Vite)
 # =================================================================
-
+# ... (sua lógica para servir o frontend continua a mesma) ...
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "static", "dist")
 
@@ -150,4 +159,4 @@ else:
     print(f"✅ Frontend servido de: {FRONTEND_BUILD_DIR}")
 
 # Exporta a aplicação ASGI que inclui WebSocket
-application = socket_app
+application = socketio.ASGIApp(websocket_service.sio, app)
