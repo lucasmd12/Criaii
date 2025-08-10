@@ -2,23 +2,22 @@ services:
   - type: web
     name: alquimista-musical
     env: python
-    pythonVersion: "3.10.13"
     plan: free
     
-    # Mantemos rootDir como src, pois seu main.py e app.py estão lá
+    # Mantemos o rootDir, pois é assim que seu projeto está configurado para funcionar.
+    # Com rootDir: src, todos os comandos começam DENTRO de /src.
     rootDir: src
 
-    # O BUILD COMMAND CORRIGIDO:
-    # 1. Volta para a raiz do repositório (onde requirements.txt está)
-    # 2. Instala as dependências Python
-    # 3. Volta para src/static para instalar e buildar o frontend
-    buildCommand: "pip install -r requirements.txt && cd static && npm install --legacy-peer-deps && npm run build"
-    
-    # O START COMMAND CORRETO, considerando o rootDir: src
-    
+    # BUILD COMMAND CORRIGIDO E NA ORDEM CERTA:
+    # 1. Instala e builda o frontend PRIMEIRO.
+    # 2. Instala as dependências Python DEPOIS.
+    buildCommand: |
+      set -o pipefail
+      cd static && npm install --legacy-peer-deps && npm run build && cd .. && pip install -r requirements.txt
+      
+    # O START COMMAND está correto para o rootDir: src
     startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
 
-    
-envVars:
+    envVars:
       - key: PYTHON_VERSION
-        value: 3.10.1
+        value: "3.10.1"
