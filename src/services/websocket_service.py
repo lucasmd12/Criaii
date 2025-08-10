@@ -8,10 +8,34 @@ class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
     
     def __init__(self):
+        # ππidcloned: Início do Bloco Antigo (Comentado)
+        # Esta configuração original com cors_allowed_origins="*" é muito ampla
+        # e pode ser bloqueada por padrão em ambientes de produção, causando o erro 403 Forbidden.
+        # -----------------------------------------------------------------
+        # self.sio = socketio.AsyncServer(
+        #     cors_allowed_origins="*",
+        #     async_mode='asgi'
+        # )
+        # -----------------------------------------------------------------
+        # ππidcloned: Fim do Bloco Antigo
+
+        # fulano: Início do Bloco Novo (Ativo)
+        # Esta configuração explícita define uma "lista de convidados" para o WebSocket,
+        # resolvendo o erro 403 Forbidden ao autorizar as origens corretas.
+        # -----------------------------------------------------------------
+        allowed_origins = [
+            "https://alquimistamusical.onrender.com", # A URL do seu app em produção
+            "http://localhost:5173",                 # Para desenvolvimento local do frontend
+            "http://localhost:3000",                 # Outra porta comum para desenvolvimento
+        ]
+
         self.sio = socketio.AsyncServer(
-            cors_allowed_origins="*",
+            cors_allowed_origins=allowed_origins,
             async_mode='asgi'
         )
+        # -----------------------------------------------------------------
+        # fulano: Fim do Bloco Novo
+        
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
         
         # Registrar eventos
@@ -37,20 +61,15 @@ class WebSocketService:
             del self.connected_users[user_to_remove]
             print(f"👤 Usuário {user_to_remove} removido da lista de conexões ativas.")
     
-    # ================== INÍCIO DA CIRURGIA ==================
-    # Esta é a função que estava causando o erro nos logs.
     async def handle_join_user_room(self, sid, data):
         """
         Evento para associar um usuário a uma sessão WebSocket.
         Esta versão é blindada para não quebrar se 'data' for None.
         """
-        # PASSO 1: Verificar se o 'paciente' (data) existe antes de operar.
-        # Isso previne o erro 'TypeError: 'NoneType' object is not subscriptable'.
         if not data:
             print(f"⚠️ Cliente {sid} tentou entrar em uma sala sem enviar dados. Ignorando.")
-            return # Sai da função para evitar o erro.
+            return
 
-        # PASSO 2: Usar .get() para segurança, como você já estava fazendo.
         user_id = data.get('userId')
         
         if user_id:
@@ -58,10 +77,8 @@ class WebSocketService:
             print(f"👤 Usuário {user_id} associado à sessão: {sid}")
             await self.sio.emit('joined_room', {'userId': user_id, 'status': 'success'}, room=sid)
         else:
-            # Se 'data' foi enviado, mas sem a chave 'userId'.
             print(f"⚠️ Cliente {sid} enviou dados sem 'userId'. Dados recebidos: {data}")
             await self.sio.emit('join_error', {'message': 'O ID do usuário (userId) não foi encontrado nos dados.'}, room=sid)
-    # =================== FIM DA CIRURGIA ====================
 
     async def send_progress_update(self, user_id: str, progress_data: Dict[str, Any]):
         """Envia atualização de progresso para um usuário específico."""
@@ -90,7 +107,6 @@ class WebSocketService:
         else:
             print(f"⚠️ Usuário {user_id} não está conectado via WebSocket para receber notificação de erro.")
     
-    # Seus métodos de atalho (alias) estão corretos e não precisam de alteração.
     async def emit_error(self, user_id: str, error_message: str):
         """Método alias para enviar erro (compatibilidade)."""
         error_data = {
