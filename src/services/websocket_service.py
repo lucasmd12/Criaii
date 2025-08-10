@@ -1,7 +1,8 @@
-# src/services/websocket_service.py (Versão Final com Configuração de CORS)
+# src/services/websocket_service.py (Versão Final com Regex para CORS)
 
 import socketio
 import asyncio
+import re  # Importa a biblioteca de Expressões Regulares
 from typing import Dict, Any
 
 class WebSocketService:
@@ -9,18 +10,18 @@ class WebSocketService:
     
     def __init__(self):
         # ================== INÍCIO DA CORREÇÃO FINAL ==================
-        # A configuração de CORS é movida para cá, dentro do AsyncServer,
-        # que é o lugar correto para ela ser processada pelo motor Engine.IO.
-        # Isso resolve o erro 403 Forbidden e o TypeError.
-        allowed_origins = [
-            "https://alquimistamusical.onrender.com",
-            "http://localhost:5173",
-            "http://localhost:3000",
-        ]
+        # Em vez de uma lista fixa, usamos uma expressão regular (regex) para a URL de produção.
+        # Isso torna a validação mais flexível para as variações que o Render pode usar
+        # (http vs https, ou proxies internos), resolvendo o erro 403 Forbidden.
+        allowed_origins_regex = re.compile(r"https?://(.*\.)?alquimistamusical\.onrender\.com")
         
         self.sio = socketio.AsyncServer(
             async_mode='asgi',
-            cors_allowed_origins=allowed_origins
+            cors_allowed_origins=[
+                allowed_origins_regex,      # Para produção no Render
+                "http://localhost:5173",    # Para desenvolvimento local
+                "http://localhost:3000"     # Outra porta de desenvolvimento
+            ]
         )
         # =================== FIM DA CORREÇÃO FINAL ====================
         
