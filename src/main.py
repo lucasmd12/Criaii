@@ -2,9 +2,6 @@
 
 # =================================================================
 # PASSO 1: CONFIGURAÇÃO DO AMBIENTE (A CURA DEFINITIVA)
-# Esta é a correção mais importante. Ela garante que o Python
-# sempre saiba onde encontrar a pasta 'src', resolvendo os
-# erros de 'ModuleNotFoundError' de uma vez por todas.
 # =================================================================
 import sys
 import os
@@ -13,10 +10,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # =================================================================
 # PASSO 2: IMPORTS PADRÃO E VARIÁVEIS DE AMBIENTE
-# O resto do seu código começa aqui, agora que o ambiente está corrigido.
 # =================================================================
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException # Adicionado HTTPException para a nova rota
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,8 +24,6 @@ load_dotenv()
 
 # =================================================================
 # IMPORTAÇÕES DOS MÓDULOS DO PROJETO
-# Agora que o sys.path está correto, estas importações
-# funcionarão de forma robusta.
 # =================================================================
 from src.routes.user import user_router
 from src.routes.music import music_router
@@ -141,19 +135,51 @@ async def websocket_info():
 # =================================================================
 # LÓGICA PARA SERVIR O FRONTEND (React/Vite)
 # =================================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "static", "dist")
 
-if not os.path.exists(FRONTEND_BUILD_DIR):
+# ππidcloned: Início do Bloco Antigo (Comentado)
+# Este método usa app.mount e causa conflito com WebSockets.
+# -----------------------------------------------------------------
+# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "static", "dist")
+# 
+# if not os.path.exists(FRONTEND_BUILD_DIR):
+#     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+#     print(f"!! AVISO: Diretório de build do frontend não encontrado.")
+#     print(f"!! Caminho esperado: {FRONTEND_BUILD_DIR}")
+#     print(f"!! Execute 'npm run build' no diretório src/static para gerar o build.")
+#     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+# else:
+#     app.mount("/", StaticFiles(directory=FRONTEND_BUILD_DIR, html=True), name="static")
+#     print(f"✅ Frontend servido de: {FRONTEND_BUILD_DIR}")
+# -----------------------------------------------------------------
+# ππidcloned: Fim do Bloco Antigo
+
+# fulano: Início do Bloco Novo (Ativo)
+# Este método usa uma rota curinga para servir o frontend,
+# resolvendo o conflito com WebSockets.
+# -----------------------------------------------------------------
+FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "static", "dist")
+
+# Verifica se a pasta de build existe para dar um aviso claro no log
+if os.path.exists(FRONTEND_BUILD_DIR):
+    # Monta a pasta de assets (JS, CSS, etc.) de forma específica
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
+
+    # Rota curinga que serve o index.html para qualquer outro caminho
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_react_app(full_path: str):
+        index_path = os.path.join(FRONTEND_BUILD_DIR, "index.html")
+        return FileResponse(index_path)
+    
+    print(f"✅ Frontend configurado para ser servido de: {FRONTEND_BUILD_DIR}")
+else:
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     print(f"!! AVISO: Diretório de build do frontend não encontrado.")
     print(f"!! Caminho esperado: {FRONTEND_BUILD_DIR}")
-    print(f"!! Execute 'npm run build' no diretório src/static para gerar o build.")
+    print(f"!! O app irá rodar, mas o frontend não será servido.")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-else:
-    app.mount("/", StaticFiles(directory=FRONTEND_BUILD_DIR, html=True), name="static")
-    print(f"✅ Frontend servido de: {FRONTEND_BUILD_DIR}")
+# -----------------------------------------------------------------
+# fulano: Fim do Bloco Novo
 
 # Exporta a aplicação ASGI que inclui WebSocket
 application = socketio.ASGIApp(websocket_service.sio, app)
-
