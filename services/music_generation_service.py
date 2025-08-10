@@ -211,7 +211,7 @@ class MusicGenerationService:
 
                 job: Optional[Job] = self.client.submit(
                     full_prompt,
-                    voice_sample_path,
+                    voice_sample_path
             
                 )
 
