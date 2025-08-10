@@ -4,16 +4,17 @@ services:
     env: python
     plan: free
     
-    # REMOVIDO o 'rootDir'. O build agora começa na raiz do projeto, o que é mais claro.
+    # Mantemos o rootDir: src, pois esta é a configuração base do seu projeto na Render.
+    # Isso força todos os comandos a começarem dentro da pasta /src.
+    rootDir: src
 
+    # O Build Command final e correto.
     buildCommand: |
-  set -o pipefail
-  cd src/static && npm install --legacy-peer-deps && npm run build && cd .. && pip install -r requirements.txt
-
+      set -o pipefail
+      cd static && npm install --legacy-peer-deps && npm run build && pip install -r ../requirements.txt
       
-    # O Start Command agora precisa do '--chdir' para funcionar sem o rootDir.
-    # Ele diz ao Uvicorn para entrar na pasta 'src' antes de procurar 'main:app'.
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000 --chdir src"
+    # Seu Start Command original, que funciona corretamente com o rootDir: src.
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
 
     envVars:
       - key: PYTHON_VERSION
