@@ -28,7 +28,7 @@ services:
     # O Gunicorn é ótimo, mas o Uvicorn direto é mais simples e evita
     # a camada extra de complexidade que estava causando erros de importação.
     # ...
-startCommand: "uvicorn app:app --host 0.0.0.0 --port 10000"
+startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
 
     # Definimos as variáveis de ambiente aqui.
     # O 'fromSecret: true' é opcional. Se preferir, pode colocar o valor
