@@ -1,332 +1,130 @@
-# Arquivo: src/services/music_generation_service.py
-# Autor: Seu Nome/Projeto Criaí
-# Versão: Final por Manus AI - Corrigido erro de importação e adicionado tratamento de erro de comunicação
-# Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
+# src/routes/user.py (O Recepcionista)
 
-import time
-import asyncio
-from typing import Optional, Tuple
-import os
+from fastapi import APIRouter, Depends, HTTPException, status, Header
+from typing import Optional
+from pydantic import BaseModel, Field
 
-import numpy as np
-# A importação do 'Job' foi removida do escopo global para evitar
-# erros de inicialização. Apenas o 'Client' é importado aqui.
-from gradio_client import Client
+from src.models.mongo_models import MongoUser, generate_token, verify_token
+# ================== INÍCIO DA CORREÇÃO ==================
+# O Recepcionista agora precisa saber como pedir acesso ao Gerente do Cofre.
+from src.database.database import get_database, DatabaseConnection
+# =================== FIM DA CORREÇÃO ====================
 
-from services.cloudinary_service import CloudinaryService
-# O Chef agora sabe que a função de arquivamento pertence ao Livro de Receitas (MongoMusic).
-from src.models.mongo_models import MongoMusic
-# A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
-from src.database.database import DatabaseConnection
+# --- Modelos Pydantic para Validação de Entrada ---
+class UserCreate(BaseModel):
+    username: str
+    password: str = Field(..., min_length=6)
 
-class MusicGenerationService:
-    _instance = None
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(MusicGenerationService, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+# --- Router do FastAPI ---
+user_router = APIRouter()
 
-    def __init__(self):
-        if self._initialized:
-            return
+# --- Dependência para obter o ID do usuário a partir do token (O Crachá de Cliente) ---
+# Esta função não precisa de acesso ao DB, então permanece igual.
+async def get_current_user_id(authorization: Optional[str] = Header(None)):
+    """Verifica o crachá (token) do cliente para dar acesso às áreas restritas."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Crachá de acesso (token Bearer) não encontrado na entrada.",
+        )
+    token = authorization.split(" ")[1]
+    user_id = verify_token(token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Crachá de acesso (token) inválido ou expirado. Por favor, faça o login novamente.",
+        )
+    return user_id
+
+# --- Rotas do Recepcionista ---
+
+@user_router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register(user_data: UserCreate, db_manager: DatabaseConnection = Depends(get_database)):
+    """Recepcionista registrando um novo cliente no livro de reservas."""
+    print(f"🤵 Recepcionista: Recebendo um novo cliente para registro: \'{user_data.username}\'")
+    try:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que cria o usuário.
+        user = await MongoUser.create_user(db_manager, user_data.username.strip(), user_data.password)
+        # =================== FIM DA CORREÇÃO ====================
+        if not user:
+            print(f"⚠️ Recepcionista: Tentativa de registro com nome já existente: \'{user_data.username}\'")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este nome já consta em nosso livro de reservas. Por favor, escolha outro.",
+            )
         
-        self._initialized = True
-        self.client: Optional[Client] = None
-        self.space_url = "https://lucasidcloned-cantai-api.hf.space"
-        self.websocket_service = None
-        self.notification_service = None
+        token = generate_token(user["_id"])
+        print(f"✅ Recepcionista: Cliente \'{user_data.username}\' registrado com sucesso. Entregando crachá de acesso.")
         
-        try:
-            from services.websocket_service import websocket_service
-            self.websocket_service = websocket_service
-        except ImportError:
-            print("⚠️ WebSocket service não disponível")
-            
-        try:
-            from services.notification_service import notification_service
-            self.notification_service = notification_service
-        except ImportError:
-            print("⚠️ Notification service não disponível")
+        return {
+            "message": "Bem-vindo ao Alquimista Musical! Seu registro foi um sucesso.",
+            "user": MongoUser.to_dict(user),
+            "token": token,
+        }
+    except Exception as e:
+        print(f"🚨 Recepcionista: Ocorreu um erro inesperado ao tentar registrar o cliente: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema em nosso sistema de registro. Tente novamente.")
 
-    async def _emit_progress(self, user_id: str, progress: int, message: str, step: str = "", estimated_time: int = None, process_id: str = None):
-        if self.websocket_service:
-            try:
-                await self.websocket_service.emit_progress(
-                    user_id=user_id,
-                    step=step,
-                    progress=progress,
-                    message=message,
-                    estimated_time=estimated_time
-                )
-                if self.notification_service and process_id:
-                    await self.notification_service.save_process_history(
-                        user_id=user_id,
-                        process_id=process_id,
-                        step=step,
-                        status='in_progress',
-                        message=message
-                    )
-            except Exception as e:
-                print(f"⚠️ Erro ao emitir progresso via WebSocket: {e}")
-
-    async def _emit_completion(self, user_id: str, music_name: str, music_url: str, process_id: str = None):
-        if self.websocket_service:
-            try:
-                await self.websocket_service.emit_completion(
-                    user_id=user_id,
-                    music_name=music_name,
-                    music_url=music_url
-                )
-                if self.notification_service and process_id:
-                    await self.notification_service.save_process_history(
-                        user_id=user_id,
-                        process_id=process_id,
-                        step='completed',
-                        status='success',
-                        message=f"Música '{music_name}' criada com sucesso"
-                    )
-                    await self.notification_service.create_notification(
-                        user_id=user_id,
-                        title="🎵 Música Pronta!",
-                        message=f"Sua música '{music_name}' foi criada com sucesso e está pronta para download.",
-                        notification_type="success",
-                        metadata={'music_url': music_url, 'music_name': music_name}
-                    )
-            except Exception as e:
-                print(f"⚠️ Erro ao emitir conclusão via WebSocket: {e}")
-
-    async def _emit_error(self, user_id: str, error_message: str, process_id: str = None):
-        if self.websocket_service:
-            try:
-                await self.websocket_service.emit_error(
-                    user_id=user_id,
-                    error_message=error_message
-                )
-                if self.notification_service and process_id:
-                    await self.notification_service.save_process_history(
-                        user_id=user_id,
-                        process_id=process_id,
-                        step='error',
-                        status='failed',
-                        message=error_message
-                    )
-                    await self.notification_service.create_notification(
-                        user_id=user_id,
-                        title="❌ Erro na Geração",
-                        message=f"Ocorreu um erro ao gerar sua música: {error_message}",
-                        notification_type="error",
-                        metadata={'error': error_message}
-                    )
-            except Exception as e:
-                print(f"⚠️ Erro ao emitir erro via WebSocket: {e}")
-
-    def _connect_to_space(self):
-        try:
-            if not self.client:
-                self.client = Client(self.space_url)
-                print(f"🔌 Conectado ao espaço: {self.space_url}")
-            return True
-        except Exception as e:
-            print(f"❌ Erro ao conectar ao espaço: {e}")
-            return False
-
-    async def generate_music_async(self, db_manager: DatabaseConnection, music_data: dict, voice_file=None, user_id: str = None):
-        voice_sample_path = None
-        try:
-            if voice_file:
-                effective_user_id = user_id or music_data.get("userId")
-                voice_sample_path = f"/tmp/voice_{effective_user_id}_{int(time.time())}.wav"
-                with open(voice_sample_path, "wb") as f:
-                    content = await voice_file.read()
-                    f.write(content)
-            
-            result = await self.generate_music(
-                db_manager=db_manager,
-                user_id=user_id or music_data.get("userId"),
-                description=music_data.get("description"),
-                music_name=music_data.get("musicName"),
-                voice_type=music_data.get("voiceType", "instrumental"),
-                lyrics=music_data.get("lyrics", ""),
-                genre=music_data.get("genre", ""),
-                rhythm=music_data.get("rhythm", ""),
-                instruments=music_data.get("instruments", ""),
-                studio_type=music_data.get("studioType", "studio"),
-                voice_sample_path=voice_sample_path
+@user_router.post("/login")
+async def login(user_data: UserLogin, db_manager: DatabaseConnection = Depends(get_database)):
+    """Recepcionista verificando a identidade de um cliente que está chegando."""
+    print(f"🤵 Recepcionista: Cliente \'{user_data.username}\' está tentando entrar no restaurante.")
+    try:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que busca o usuário.
+        user = await MongoUser.find_by_username(db_manager, user_data.username.strip())
+        # =================== FIM DA CORREÇÃO ====================
+        
+        if not user or not MongoUser.check_password(user, user_data.password):
+            print(f"🚫 Recepcionista: Acesso negado para \'{user_data.username}\'. Credenciais não conferem.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Nome de usuário ou senha não conferem com nosso livro de reservas.",
             )
             
-            return result
-            
-        except Exception as e:
-            print(f"❌ Erro no generate_music_async: {e}")
-            await self._emit_error(user_id or music_data.get("userId"), str(e))
-            return {"success": False, "error": str(e)}
-        finally:
-            if voice_sample_path and os.path.exists(voice_sample_path):
-                try:
-                    os.remove(voice_sample_path)
-                except OSError as e:
-                    print(f"⚠️ Erro ao remover arquivo temporário: {e}")
-
-
-    async def generate_music(self, db_manager: DatabaseConnection, user_id: str, description: str, music_name: str, 
-                           voice_type: str = "instrumental", lyrics: str = "", 
-                           genre: str = "", rhythm: str = "", instruments: str = "", 
-                           studio_type: str = "studio", voice_sample_path: str = None):
-        process_id = f"music_{user_id}_{int(time.time())}"
+        token = generate_token(user["_id"])
+        print(f"👍 Recepcionista: Cliente \'{user_data.username}\' verificado. Entregando novo crachá de acesso.")
         
-        try:
-            if self.notification_service:
-                self.notification_service.start_process_tracking(user_id, process_id, "music_generation")
-            
-            await self._emit_progress(user_id, 5, "📋 Pedido recebido na cozinha", "received", 180, process_id)
-            await asyncio.sleep(1)
-            
-            await self._emit_progress(user_id, 10, "🔌 Conectando com a cozinha IA", "connecting", 170, process_id)
-            if not self._connect_to_space():
-                raise Exception("Falha ao conectar com o serviço de IA. Tente novamente mais tarde.")
-            await asyncio.sleep(2)
-            
-            await self._emit_progress(user_id, 20, "📝 Enviando pedido para o chef", "sending_order", 150, process_id)
-            await asyncio.sleep(1)
-            
-            await self._emit_progress(user_id, 30, "👨‍🍳 Chef IA analisando seu pedido", "preparing", 130, process_id)
-            await asyncio.sleep(2)
-            
-            if voice_sample_path and voice_type != "instrumental":
-                await self._emit_progress(user_id, 40, "🎤 Processando sua amostra de voz", "processing_voice", 120, process_id)
-                await asyncio.sleep(3)
-            
-            await self._emit_progress(user_id, 50, "🔥 Música no forno da IA", "cooking", 90, process_id)
-            
-            full_prompt = self._build_prompt(description, voice_type, lyrics, genre, rhythm, instruments, studio_type)
-            
-            await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
-            
-            # ================== INÍCIO DA CORREÇÃO DE ROBUSTEZ ==================
-            try:
-                # A importação do 'Job' é feita aqui, dentro da função.
-                from gradio_client.client import Job
+        return {
+            "message": "Login realizado com sucesso. Bom te ver de volta!",
+            "user": MongoUser.to_dict(user),
+            "token": token,
+        }
+    except Exception as e:
+        print(f"🚨 Recepcionista: Ocorreu um erro inesperado durante o login: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema em nosso sistema de login. Tente novamente.")
 
-                job: Optional[Job] = self.client.submit(
-                    full_prompt,
-                    voice_sample_path,
-                    api_name="/predict"
-                )
+@user_router.get("/profile")
+async def get_profile(
+    current_user_id: str = Depends(get_current_user_id),
+    db_manager: DatabaseConnection = Depends(get_database)
+):
+    """Recepcionista buscando os dados do cliente no livro de reservas."""
+    print(f"🤵 Recepcionista: Buscando informações do cliente com ID: {current_user_id}")
+    try:
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # Entregamos a chave do cofre (db_manager) para o método que busca por ID.
+        user = await MongoUser.find_by_id(db_manager, current_user_id)
+        # =================== FIM DA CORREÇÃO ====================
+        if not user:
+            print(f"❓ Recepcionista: Cliente com ID {current_user_id} não encontrado no livro de reservas.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Não encontramos seus dados em nosso sistema.")
+        
+        print(f"✅ Recepcionista: Informações do cliente {user[\'username\']} encontradas.")
+        return {"user": MongoUser.to_dict(user)}
+    except Exception as e:
+        print(f"🚨 Recepcionista: Erro ao buscar informações do cliente: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Houve um problema ao buscar suas informações.")
 
-                if not job:
-                    raise Exception("O serviço de IA não aceitou o pedido. Pode estar sobrecarregado ou offline.")
-                
-                result = job.result(timeout=300)
+@user_router.get("/users", include_in_schema=False)
+async def get_users():
+    """Recepcionista informando que a lista de todos os clientes é confidencial."""
+    print("🔐 Recepcionista: Tentativa de acesso à lista completa de clientes foi bloqueada por segurança.")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A lista de todos os clientes é confidencial e não pode ser acessada.")
 
-            except Exception as gradio_error:
-                # Se qualquer coisa der errado na comunicação com o Gradio (timeout, erro de rede, etc.),
-                # o Chef agora sabe como lidar com isso.
-                print(f"🚨 Erro de comunicação com o Forno Aliado (Gradio): {gradio_error}")
-                # Ele avisa o cliente com uma mensagem clara.
-                raise Exception("Houve um problema de comunicação com o serviço de IA. Por favor, tente novamente em alguns minutos.")
-            # =================== FIM DA CORREÇÃO DE ROBUSTEZ ====================
-            
-            if not result:
-                raise Exception("Falha na geração da música. O serviço de IA não retornou um resultado válido.")
-            
-            await self._emit_progress(user_id, 85, "🎵 Finalizando detalhes da música", "finalizing", 30, process_id)
-            await asyncio.sleep(2)
-            
-            await self._emit_progress(user_id, 95, "☁️ Garçom levando à sua mesa", "uploading", 15, process_id)
-            
-            cloudinary_service = CloudinaryService()
-            music_url = cloudinary_service.upload_audio(result, f"{music_name}_{user_id}")
-            
-            if not music_url:
-                raise Exception("Falha no upload da música para a nuvem.")
-            
-            await self._emit_progress(user_id, 98, "💾 Registrando no cardápio", "saving", 5, process_id)
-            
-            await MongoMusic.add_generated_music(db_manager, {
-                "userId": user_id,
-                "musicName": music_name,
-                "description": description,
-                "musicUrl": music_url,
-                "voiceType": voice_type,
-                "genre": genre,
-                "lyrics": lyrics
-            })
-            
-            await self._emit_completion(user_id, music_name, music_url, process_id)
-            
-            if self.notification_service:
-                self.notification_service.complete_process(process_id, True, f"Música '{music_name}' criada com sucesso")
-            
-            return {
-                "success": True,
-                "music_url": music_url,
-                "music_name": music_name,
-                "message": f"Música '{music_name}' gerada com sucesso!"
-            }
-            
-        except Exception as e:
-            error_message = str(e)
-            print(f"❌ Erro inesperado: {error_message}")
-            
-            await self._emit_error(user_id, error_message, process_id)
-            
-            if self.notification_service:
-                self.notification_service.complete_process(process_id, False, error_message)
-            
-            return {
-                "success": False,
-                "error": error_message,
-                "message": "Erro ao gerar música. Tente novamente."
-            }
 
-    def _build_prompt(self, description: str, voice_type: str, lyrics: str = "", 
-                     genre: str = "", rhythm: str = "", instruments: str = "", 
-                     studio_type: str = "studio") -> str:
-        prompt_parts = [description]
-        
-        if genre:
-            prompt_parts.append(f"Gênero: {genre}")
-        
-        if rhythm:
-            rhythm_map = {"slow": "lento", "fast": "rápido", "mixed": "ritmo variado"}
-            prompt_parts.append(f"Ritmo: {rhythm_map.get(rhythm, rhythm)}")
-        
-        if instruments:
-            prompt_parts.append(f"Instrumentos: {instruments}")
-        
-        if studio_type == "live":
-            prompt_parts.append("Ambiente: gravação ao vivo")
-        else:
-            prompt_parts.append("Ambiente: estúdio profissional")
-        
-        if voice_type != "instrumental":
-            voice_map = {
-                "male": "voz masculina",
-                "female": "voz feminina", 
-                "both": "dueto (vozes masculina e feminina)"
-            }
-            prompt_parts.append(f"Tipo de voz: {voice_map.get(voice_type, voice_type)}")
-        
-        return ". ".join(prompt_parts)
-
-    def _call_huggingface_api(self, prompt: str, voice_sample_path: Optional[str] = None) -> Optional[Tuple[int, np.ndarray]]:
-        """
-        Chama a API do Hugging Face para gerar música.
-        Esta é a versão corrigida, sem o parâmetro 'api_name'.
-        """
-        try:
-            if voice_sample_path:
-                result = self.client.predict(prompt, voice_sample_path, api_name="/predict")
-            else:
-                result = self.client.predict(prompt, api_name="/predict")
-            
-            return result
-            
-        except Exception as e:
-            print(f"❌ Erro na API do Hugging Face: {e}")
-            return None
-
-# Instância global do serviço
-music_generation_service = MusicGenerationService()
