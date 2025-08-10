@@ -1,11 +1,13 @@
-# src/main.py (Versão com Arquitetura Final Simplificada)
+# src/main.py (Versão com Arquitetura Final Simplificada e Corrigida)
 
 # =================================================================
 # PASSO 1: CONFIGURAÇÃO DO AMBIENTE
 # =================================================================
+# A linha 'sys.path.insert' foi removida.
+# O comando de start com 'PYTHONPATH=.' torna esta manipulação
+# manual do path desnecessária e potencialmente conflituosa.
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 # =================================================================
