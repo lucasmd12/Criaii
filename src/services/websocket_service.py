@@ -1,4 +1,4 @@
-# src/services/websocket_service.py (Versão Corrigida)
+# src/services/websocket_service.py (Versão Final Corrigida e Blindada)
 
 import socketio
 import asyncio
@@ -35,17 +35,34 @@ class WebSocketService:
                 break
         if user_to_remove:
             del self.connected_users[user_to_remove]
+            print(f"👤 Usuário {user_to_remove} removido da lista de conexões ativas.")
     
+    # ================== INÍCIO DA CIRURGIA ==================
+    # Esta é a função que estava causando o erro nos logs.
     async def handle_join_user_room(self, sid, data):
-        """Evento para associar um usuário a uma sessão WebSocket."""
+        """
+        Evento para associar um usuário a uma sessão WebSocket.
+        Esta versão é blindada para não quebrar se 'data' for None.
+        """
+        # PASSO 1: Verificar se o 'paciente' (data) existe antes de operar.
+        # Isso previne o erro 'TypeError: 'NoneType' object is not subscriptable'.
+        if not data:
+            print(f"⚠️ Cliente {sid} tentou entrar em uma sala sem enviar dados. Ignorando.")
+            return # Sai da função para evitar o erro.
+
+        # PASSO 2: Usar .get() para segurança, como você já estava fazendo.
         user_id = data.get('userId')
+        
         if user_id:
             self.connected_users[user_id] = sid
-            # A sala específica do usuário é o próprio SID para garantir unicidade
-            # e evitar que um usuário receba notificações de outro se a sala for genérica.
             print(f"👤 Usuário {user_id} associado à sessão: {sid}")
-            await self.sio.emit('joined_room', {'userId': user_id}, room=sid)
-    
+            await self.sio.emit('joined_room', {'userId': user_id, 'status': 'success'}, room=sid)
+        else:
+            # Se 'data' foi enviado, mas sem a chave 'userId'.
+            print(f"⚠️ Cliente {sid} enviou dados sem 'userId'. Dados recebidos: {data}")
+            await self.sio.emit('join_error', {'message': 'O ID do usuário (userId) não foi encontrado nos dados.'}, room=sid)
+    # =================== FIM DA CIRURGIA ====================
+
     async def send_progress_update(self, user_id: str, progress_data: Dict[str, Any]):
         """Envia atualização de progresso para um usuário específico."""
         session_id = self.connected_users.get(user_id)
@@ -73,10 +90,7 @@ class WebSocketService:
         else:
             print(f"⚠️ Usuário {user_id} não está conectado via WebSocket para receber notificação de erro.")
     
-    # ================== INÍCIO DA CORREÇÃO ==================
-    # Os métodos de atalho (alias) agora chamam os métodos principais usando 'self'.
-    # Isso corrige o erro 'AttributeError' que vimos no log.
-    
+    # Seus métodos de atalho (alias) estão corretos e não precisam de alteração.
     async def emit_error(self, user_id: str, error_message: str):
         """Método alias para enviar erro (compatibilidade)."""
         error_data = {
@@ -104,7 +118,6 @@ class WebSocketService:
             'timestamp': asyncio.get_event_loop().time()
         }
         await self.send_completion_notification(user_id, completion_data)
-    # =================== FIM DA CORREÇÃO ====================
 
 # Instância global do serviço WebSocket
 websocket_service = WebSocketService()
