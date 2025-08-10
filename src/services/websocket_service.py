@@ -1,4 +1,4 @@
-# src/services/websocket_service.py (Versão Íntegra e Restaurada)
+# src/services/websocket_service.py (Versão Final com Configuração de CORS)
 
 import socketio
 import asyncio
@@ -8,12 +8,21 @@ class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
     
     def __init__(self):
-        # ================== INÍCIO DA RESTAURAÇÃO ==================
-        # Esta linha é essencial e estava faltando, causando o erro 'AttributeError'.
-        # Ela cria o servidor Socket.IO e o atribui a 'self.sio'.
-        # A configuração de CORS foi removida daqui, pois será gerenciada no main.py.
-        self.sio = socketio.AsyncServer(async_mode='asgi')
-        # =================== FIM DA RESTAURAÇÃO ====================
+        # ================== INÍCIO DA CORREÇÃO FINAL ==================
+        # A configuração de CORS é movida para cá, dentro do AsyncServer,
+        # que é o lugar correto para ela ser processada pelo motor Engine.IO.
+        # Isso resolve o erro 403 Forbidden e o TypeError.
+        allowed_origins = [
+            "https://alquimistamusical.onrender.com",
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ]
+        
+        self.sio = socketio.AsyncServer(
+            async_mode='asgi',
+            cors_allowed_origins=allowed_origins
+        )
+        # =================== FIM DA CORREÇÃO FINAL ====================
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
         
