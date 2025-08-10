@@ -17,18 +17,15 @@ services:
     
     # Seus comandos de build originais e corretos.
     # Instala as dependências do Python e depois constrói o frontend.
-    buildCommand: |
-      pip install -r requirements.txt
-      cd src/static
-      npm install --legacy-peer-deps
-      npm run build
-
+    buildCommand: "cd .. && pip install -r requirements.txt && cd src/static && npm install --legacy-peer-deps && npm run build"
+    
+    
     # O comando de start que sabemos que funciona com FastAPI.
     # Ele inicia o Uvicorn, que é o servidor recomendado para FastAPI.
     # O Gunicorn é ótimo, mas o Uvicorn direto é mais simples e evita
     # a camada extra de complexidade que estava causando erros de importação.
     # ...
-startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
 
     # Definimos as variáveis de ambiente aqui.
     # O 'fromSecret: true' é opcional. Se preferir, pode colocar o valor
