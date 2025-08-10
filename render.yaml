@@ -13,7 +13,8 @@ services:
     # Isso garante que o 'scipy==1.10.1' encontre um 'wheel' pré-compilado
     # e não tente usar a "furadeira" gfortran.
     pythonVersion: "3.10.13"
-
+    rootDir: src  # <--- ADICIONE ESTA LINHA
+    
     # Seus comandos de build originais e corretos.
     # Instala as dependências do Python e depois constrói o frontend.
     buildCommand: |
