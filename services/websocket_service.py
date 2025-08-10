@@ -9,32 +9,11 @@ class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
     
     def __init__(self):
-     # AGORA TÔ USANDO ESSE
-                self.sio = socketio.AsyncServer(
+           self.sio = socketio.AsyncServer(
             async_mode='asgi',
             cors_allowed_origins="*",
             transports=['polling', 'websocket'] 
         )
-
-        
-        
-        # ================== antes eu usava esse com regex recompile ==================
-        # Em vez de uma lista fixa, usamos uma expressão regular (regex) para a URL de produção.
-        # Isso torna a validação mais flexível para as variações que o Render pode usar
-        # (http vs https, ou proxies internos), resolvendo o erro 403 Forbidden.
-        allowed_origins_regex = re.compile(r"https?://(.*\.)?alquimistamusical\.onrender\.com")
-        
-       # self.sio = socketio.AsyncServer(
-           # async_mode='asgi',
-           # cors_allowed_origins=[
-              #  allowed_origins_regex,      # Para produção no Render
-             #   "http://localhost:5173",    # Para desenvolvimento local
-            #    "http://localhost:3000"     # Outra porta de desenvolvimento
-           # ],
-
-        
-       # )
-        # =================== FIM DA CORREÇÃO FINAL ====================
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
         
