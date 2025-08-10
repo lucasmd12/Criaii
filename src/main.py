@@ -1,4 +1,4 @@
-# src/main.py (Versão com Arquitetura Final Unificada)
+# src/main.py (Versão com Arquitetura Final Simplificada)
 
 # =================================================================
 # PASSO 1: CONFIGURAÇÃO DO AMBIENTE
@@ -15,8 +15,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-# O CORSMiddleware não é mais necessário aqui, pois será gerenciado pelo ASGIApp
-# from fastapi.middleware.cors import CORSMiddleware 
 import socketio
 
 # Carregar variáveis de ambiente
@@ -47,25 +45,7 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# ππidcloned: Início do Bloco Antigo (Comentado)
-# O middleware de CORS do FastAPI é removido para evitar conflito com o
-# gerenciamento de CORS unificado do socketio.ASGIApp.
-# -----------------------------------------------------------------
-# origins = [
-#     "https://alquimistamusical.onrender.com",
-#     "http://localhost:5173",
-#     "http://localhost:3000",
-#     "*"
-# ]
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-# -----------------------------------------------------------------
-# ππidcloned: Fim do Bloco Antigo
+# O middleware de CORS do FastAPI foi removido para evitar conflitos.
 
 # --- Eventos de Startup e Shutdown (Permanecem os mesmos) ---
 @app.on_event("startup")
@@ -97,19 +77,15 @@ app.include_router(notifications_router, prefix="/api/notifications", tags=["Pai
 # --- Rotas de Health Check e Info (Permanecem as mesmas) ---
 @app.get("/health")
 async def health_check():
-    # ... (código inalterado)
     keep_alive_status = keep_alive_service.get_status()
     return {"status": "healthy", "service": "Alquimista Musical", "version": "2.0.0", "websocket": "enabled", "keep_alive": keep_alive_status, "features": ["Geração de música com IA", "Feedback em tempo real via WebSocket", "Painel de notificações persistentes", "Keep-alive automático do Hugging Face", "Estúdio virtual completo"]}
 
 @app.get("/api/websocket-info")
 async def websocket_info():
-    # ... (código inalterado)
     return {"endpoint": "/socket.io/", "events": {"client_to_server": ["connect", "join_user_room"], "server_to_client": ["connection_status", "joined_room", "music_progress", "music_completed", "music_error"]}, "usage": "Conecte-se e envie 'join_user_room' com {userId: 'seu_id'} para receber atualizações"}
 
 # =================================================================
 # LÓGICA PARA SERVIR O FRONTEND (React/Vite)
-# A lógica de servir o frontend permanece a mesma que funcionou,
-# usando a rota curinga para evitar conflitos.
 # =================================================================
 FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "static", "dist")
 
@@ -130,19 +106,10 @@ else:
 # =================================================================
 # PONTO DE ENTRADA FINAL DA APLICAÇÃO (ASGI)
 # =================================================================
-origins_final = [
-    "https://alquimistamusical.onrender.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
-]
-
-# ================== INÍCIO DA CORREÇÃO FINAL ==================
-# O erro 'TypeError' acontece porque 'cors_allowed_origins' não é um argumento
-# direto do ASGIApp. Ele precisa ser passado para o motor Engine.IO
-# através do dicionário 'engineio_options'. Esta é a forma correta.
+# A configuração de CORS foi movida para o websocket_service.py,
+# que é o lugar correto. O ASGIApp agora atua apenas como um unificador
+# simples e limpo entre o FastAPI e o Socket.IO.
 application = socketio.ASGIApp(
     socketio_server=websocket_service.sio,
-    other_asgi_app=app,
-    engineio_options={'cors_allowed_origins': origins_final}
+    other_asgi_app=app
 )
-# =================== FIM DA CORREÇÃO FINAL ====================
