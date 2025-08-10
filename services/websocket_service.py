@@ -7,8 +7,13 @@ from typing import Dict, Any
 
 class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
+
+
     
     def __init__(self):
+
+
+        
            self.sio = socketio.AsyncServer(
             async_mode='asgi',
             cors_allowed_origins="*",
@@ -16,12 +21,16 @@ class WebSocketService:
         )
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
-        
+
+
+
         # Registrar eventos
         self.sio.on('connect', self.handle_connect)
         self.sio.on('disconnect', self.handle_disconnect)
         self.sio.on('join_user_room', self.handle_join_user_room)
-    
+
+
+
     async def handle_connect(self, sid, environ):
         """Evento quando um cliente se conecta."""
         print(f"🔌 Cliente conectado: {sid}")
