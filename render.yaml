@@ -4,19 +4,21 @@ services:
     env: python
     plan: free
     
-    # Mantemos o rootDir, pois é assim que seu projeto está configurado para funcionar.
-    # Com rootDir: src, todos os comandos começam DENTRO de /src.
-    rootDir: src
+    # REMOVIDO o 'rootDir'. O build agora começa na raiz do projeto, o que é mais claro.
 
-    # BUILD COMMAND CORRIGIDO E NA ORDEM CERTA:
-    # 1. Instala e builda o frontend PRIMEIRO.
-    # 2. Instala as dependências Python DEPOIS.
     buildCommand: |
+      # Passo 1: Navegar para a pasta do frontend, instalar e buildar.
+      # Caminho explícito a partir da raiz: src/static
       set -o pipefail
-      cd static && npm install --legacy-peer-deps && npm run build && cd .. && pip install -r requirements.txt
+      cd src/static && npm install --legacy-peer-deps && npm run build
       
-    # O START COMMAND está correto para o rootDir: src
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
+      # Passo 2: Instalar as dependências do Python.
+      # O requirements.txt está em 'src', então usamos o caminho explícito.
+      pip install -r src/requirements.txt
+      
+    # O Start Command agora precisa do '--chdir' para funcionar sem o rootDir.
+    # Ele diz ao Uvicorn para entrar na pasta 'src' antes de procurar 'main:app'.
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000 --chdir src"
 
     envVars:
       - key: PYTHON_VERSION
