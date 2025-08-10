@@ -15,9 +15,9 @@ from gradio_client import Client
 
 from services.cloudinary_service import CloudinaryService
 # O Chef agora sabe que a função de arquivamento pertence ao Livro de Receitas (MongoMusic).
-from src.models.mongo_models import MongoMusic
+from models.mongo_models import MongoMusic
 # A Cozinha agora precisa saber o que é um "Gerente do Cofre" para poder recebê-lo.
-from src.database.database import DatabaseConnection
+from database.database import DatabaseConnection
 
 class MusicGenerationService:
     _instance = None
