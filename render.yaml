@@ -7,14 +7,9 @@ services:
     # REMOVIDO o 'rootDir'. O build agora começa na raiz do projeto, o que é mais claro.
 
     buildCommand: |
-      # Passo 1: Navegar para a pasta do frontend, instalar e buildar.
-      # Caminho explícito a partir da raiz: src/static
-      set -o pipefail
-      cd src/static && npm install --legacy-peer-deps && npm run build
-      
-      # Passo 2: Instalar as dependências do Python.
-      # O requirements.txt está em 'src', então usamos o caminho explícito.
-      pip install -r src/requirements.txt
+  set -o pipefail
+  cd src/static && npm install --legacy-peer-deps && npm run build && cd .. && pip install -r requirements.txt
+
       
     # O Start Command agora precisa do '--chdir' para funcionar sem o rootDir.
     # Ele diz ao Uvicorn para entrar na pasta 'src' antes de procurar 'main:app'.
