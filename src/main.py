@@ -128,11 +128,7 @@ else:
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 # =================================================================
-# fulano: Início do Bloco Novo (Ativo)
-# Esta é a arquitetura final e correta. O socketio.ASGIApp se torna o
-# ponto de entrada principal. Ele gerencia o CORS para TUDO (HTTP e WebSocket)
-# e direciona o tráfego: requisições para '/socket.io' vão para o WebSocket,
-# e todas as outras vão para a aplicação FastAPI ('app').
+# PONTO DE ENTRADA FINAL DA APLICAÇÃO (ASGI)
 # =================================================================
 origins_final = [
     "https://alquimistamusical.onrender.com",
@@ -140,10 +136,13 @@ origins_final = [
     "http://localhost:3000",
 ]
 
+# ================== INÍCIO DA CORREÇÃO FINAL ==================
+# O erro 'TypeError' acontece porque 'cors_allowed_origins' não é um argumento
+# direto do ASGIApp. Ele precisa ser passado para o motor Engine.IO
+# através do dicionário 'engineio_options'. Esta é a forma correta.
 application = socketio.ASGIApp(
     socketio_server=websocket_service.sio,
     other_asgi_app=app,
-    cors_allowed_origins=origins_final
+    engineio_options={'cors_allowed_origins': origins_final}
 )
-# =================================================================
-# fulano: Fim do Bloco Novo
+# =================== FIM DA CORREÇÃO FINAL ====================
