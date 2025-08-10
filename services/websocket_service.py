@@ -30,10 +30,10 @@ class WebSocketService:
               #  allowed_origins_regex,      # Para produção no Render
              #   "http://localhost:5173",    # Para desenvolvimento local
             #    "http://localhost:3000"     # Outra porta de desenvolvimento
-            ],
+           # ],
 
-           transports=['polling', 'websocket'] 
-        )
+        
+       # )
         # =================== FIM DA CORREÇÃO FINAL ====================
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
