@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from bson import ObjectId
 
 # Importa a classe de conexão com o banco de dados para tipagem e uso.
-from src.database.database import DatabaseConnection
+from database.database import DatabaseConnection
 
 class UserModel:
     """

@@ -7,7 +7,7 @@ import jwt
 from bson import ObjectId
 
 # Importamos a classe de conexão para usar como "type hint" (dica de tipo).
-from src.database.database import DatabaseConnection
+from database.database import DatabaseConnection
 
 class MongoUser:
     @classmethod
