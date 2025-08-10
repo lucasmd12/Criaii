@@ -5,34 +5,15 @@ services:
     pythonVersion: "3.10.13"
     plan: free
     
-    # NÃO vamos usar rootDir desta vez. Vamos operar a partir da raiz.
-    
-    buildCommand: |
-      echo "--- INICIANDO DIAGNÓSTICO DE SHERLOCK HOLMES ---"
-      
-      echo "==> 1. Onde eu estou começando SEM o rootDir?"
-      pwd
-      
-      echo "==> 2. O que tem nesta pasta raiz? O requirements.txt está aqui?"
-      ls -la
-      
-      echo "==> 3. O que tem dentro da pasta 'src'?"
-      ls -la src/
-      
-      echo "--- TENTATIVA DE BUILD COM CAMINHOS ABSOLUTOS ---"
-      
-      echo "==> 4. Tentando instalar as dependências a partir da raiz..."
-      pip install -r requirements.txt
-      
-      echo "==> 5. Tentando construir o frontend entrando em src/static..."
-      cd src/static && npm install --legacy-peer-deps && npm run build
-      
-      echo "--- FIM DO DIAGNÓSTICO ---"
-      # Se chegarmos aqui, o build foi um sucesso.
+    # Vamos voltar para a configuração que sabemos que é logicamente correta.
+    rootDir: src
 
-    # O startCommand precisa ser ajustado porque não estamos mais em 'src'.
-    # Precisamos dar o caminho completo a partir da raiz.
-    startCommand: "uvicorn src.main:app --host 0.0.0.0 --port 10000"
+    # O BUILD COMMAND EM UMA ÚNICA LINHA - A CHAVE MESTRA
+    # Esta é a sintaxe que o Render entende.
+    buildCommand: "cd .. && pip install -r requirements.txt && cd src/static && npm install --legacy-peer-deps && npm run build"
+
+    # O START COMMAND CORRETO, considerando o rootDir: src
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
 
     envVars:
       - key: PYTHON_VERSION
