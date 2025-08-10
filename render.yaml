@@ -1,45 +1,39 @@
-# "A Planta da Garagem" para o Alquimista Musical no Render
-# Versão Final - Respeitando a arquitetura híbrida (FastAPI/Flask)
-
 services:
   - type: web
     name: alquimista-musical
-    # Usamos o ambiente Python nativo do Render, que é o mais simples.
     env: python
-    # Garantimos o plano gratuito.
+    pythonVersion: "3.10.13"
     plan: free
     
-    # A chave para tudo: Forçamos o Render a usar o Python 3.10.
-    # Isso garante que o 'scipy==1.10.1' encontre um 'wheel' pré-compilado
-    # e não tente usar a "furadeira" gfortran.
-    pythonVersion: "3.10.13"
-    rootDir: src  # <--- ADICIONE ESTA LINHA
+    # NÃO vamos usar rootDir desta vez. Vamos operar a partir da raiz.
     
-    # Seus comandos de build originais e corretos.
-    # Instala as dependências do Python e depois constrói o frontend.
-    buildCommand: "cd .. && pip install -r requirements.txt && cd src/static && npm install --legacy-peer-deps && npm run build"
-    
-    
-    # O comando de start que sabemos que funciona com FastAPI.
-    # Ele inicia o Uvicorn, que é o servidor recomendado para FastAPI.
-    # O Gunicorn é ótimo, mas o Uvicorn direto é mais simples e evita
-    # a camada extra de complexidade que estava causando erros de importação.
-    # ...
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
+    buildCommand: |
+      echo "--- INICIANDO DIAGNÓSTICO DE SHERLOCK HOLMES ---"
+      
+      echo "==> 1. Onde eu estou começando SEM o rootDir?"
+      pwd
+      
+      echo "==> 2. O que tem nesta pasta raiz? O requirements.txt está aqui?"
+      ls -la
+      
+      echo "==> 3. O que tem dentro da pasta 'src'?"
+      ls -la src/
+      
+      echo "--- TENTATIVA DE BUILD COM CAMINHOS ABSOLUTOS ---"
+      
+      echo "==> 4. Tentando instalar as dependências a partir da raiz..."
+      pip install -r requirements.txt
+      
+      echo "==> 5. Tentando construir o frontend entrando em src/static..."
+      cd src/static && npm install --legacy-peer-deps && npm run build
+      
+      echo "--- FIM DO DIAGNÓSTICO ---"
+      # Se chegarmos aqui, o build foi um sucesso.
 
-    # Definimos as variáveis de ambiente aqui.
-    # O 'fromSecret: true' é opcional. Se preferir, pode colocar o valor
-    # direto aqui, mas usar o "Secret File" do Render é mais seguro.
+    # O startCommand precisa ser ajustado porque não estamos mais em 'src'.
+    # Precisamos dar o caminho completo a partir da raiz.
+    startCommand: "uvicorn src.main:app --host 0.0.0.0 --port 10000"
+
     envVars:
-      - key: MONGO_URI
-        sync: false # 'sync: false' impede que o Render sobrescreva se vc mudar no dashboard
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
-      - key: CLOUDINARY_API_KEY
-        sync: false
-      - key: CLOUDINARY_API_SECRET
-        sync: false
-      - key: HUGGING_FACE_SPACE_URL
-        sync: false
-      - key: SECRET_KEY
-        sync: false
+      - key: PYTHON_VERSION
+        value: "3.10.13"
