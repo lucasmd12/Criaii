@@ -5,12 +5,14 @@ services:
     pythonVersion: "3.10.13"
     plan: free
     
-    # Vamos voltar para a configuração que sabemos que é logicamente correta.
+    # Mantemos rootDir como src, pois seu main.py e app.py estão lá
     rootDir: src
 
-    # O BUILD COMMAND EM UMA ÚNICA LINHA - A CHAVE MESTRA
-    # Esta é a sintaxe que o Render entende.
-    buildCommand: "cd .. && pip install -r requirements.txt && cd src/static && npm install --legacy-peer-deps && npm run build"
+    # O BUILD COMMAND CORRIGIDO:
+    # 1. Volta para a raiz do repositório (onde requirements.txt está)
+    # 2. Instala as dependências Python
+    # 3. Volta para src/static para instalar e buildar o frontend
+    buildCommand: "cd $RENDER_REPOSITORY_ROOT && pip install -r requirements.txt && cd src/static && npm install --legacy-peer-deps && npm run build"
 
     # O START COMMAND CORRETO, considerando o rootDir: src
     startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
