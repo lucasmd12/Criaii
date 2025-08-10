@@ -14,18 +14,18 @@ load_dotenv()
 # =================================================================
 # IMPORTAÇÕES: Corrigindo as importações do banco de dados
 # =================================================================
-from src.routes.user import user_router
-from src.routes.music import music_router
-from src.routes.music_list import music_list_router
-from src.routes.notifications import notifications_router
-from src.services.firebase_service import FirebaseService
-from src.services.cloudinary_service import CloudinaryService
-from src.services.websocket_service import websocket_service
-from src.services.keep_alive_service import keep_alive_service
+from routes.user import user_router
+from routes.music import music_router
+from routes.music_list import music_list_router
+from routes.notifications import notifications_router
+from services.firebase_service import FirebaseService
+from services.cloudinary_service import CloudinaryService
+from services.websocket_service import websocket_service
+from services.keep_alive_service import keep_alive_service
 # ================== INÍCIO DA CORREÇÃO ==================
 # Importamos o nosso "Gerente do Cofre" e suas funções de controle.
 
-from src.database.database import db_manager
+from database.database import db_manager
 
 # =================== FIM DA CORREÇÃO ====================
 
