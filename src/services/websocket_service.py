@@ -1,4 +1,4 @@
-# src/services/websocket_service.py (Versão Final Corrigida e Blindada)
+# src/services/websocket_service.py (Versão Corrigida para Centralizar o CORS)
 
 import socketio
 import asyncio
@@ -8,33 +8,13 @@ class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
     
     def __init__(self):
-        # ππidcloned: Início do Bloco Antigo (Comentado)
-        # Esta configuração original com cors_allowed_origins="*" é muito ampla
-        # e pode ser bloqueada por padrão em ambientes de produção, causando o erro 403 Forbidden.
-        # -----------------------------------------------------------------
-        # self.sio = socketio.AsyncServer(
-        #     cors_allowed_origins="*",
-        #     async_mode='asgi'
-        # )
-        # -----------------------------------------------------------------
-        # ππidcloned: Fim do Bloco Antigo
-
-        # fulano: Início do Bloco Novo (Ativo)
-        # Esta configuração explícita define uma "lista de convidados" para o WebSocket,
-        # resolvendo o erro 403 Forbidden ao autorizar as origens corretas.
-        # -----------------------------------------------------------------
-        allowed_origins = [
-            "https://alquimistamusical.onrender.com", # A URL do seu app em produção
-            "http://localhost:5173",                 # Para desenvolvimento local do frontend
-            "http://localhost:3000",                 # Outra porta comum para desenvolvimento
-        ]
-
-        self.sio = socketio.AsyncServer(
-            cors_allowed_origins=allowed_origins,
-            async_mode='asgi'
-        )
-        # -----------------------------------------------------------------
-        # fulano: Fim do Bloco Novo
+        # ================== INÍCIO DA CORREÇÃO ==================
+        # A inicialização do SIO agora é limpa.
+        # A responsabilidade do CORS foi movida para o ponto de entrada
+        # da aplicação (main.py), onde o ASGIApp é criado.
+        # Isso evita o erro 'TypeError: got an unexpected keyword argument'.
+        self.sio = socketio.AsyncServer(async_mode='asgi')
+        # =================== FIM DA CORREÇÃO ====================
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
         
