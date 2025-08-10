@@ -182,4 +182,8 @@ else:
 # fulano: Fim do Bloco Novo
 
 # Exporta a aplicação ASGI que inclui WebSocket
-application = socketio.ASGIApp(websocket_service.sio, app)
+# application = socketio.ASGIApp(websocket_service.sio, app)
+
+# ADICIONE ESTA LINHA NO LUGAR
+app.mount("/", websocket_service.sio)
+
