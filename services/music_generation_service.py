@@ -212,7 +212,7 @@ class MusicGenerationService:
                 job: Optional[Job] = self.client.submit(
                     full_prompt,
                     voice_sample_path,
-                    api_name="/predict"
+            
                 )
 
                 if not job:
