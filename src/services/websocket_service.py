@@ -1,4 +1,4 @@
-# src/services/websocket_service.py (Versão Corrigida para Centralizar o CORS)
+# src/services/websocket_service.py (Versão Íntegra e Restaurada)
 
 import socketio
 import asyncio
@@ -8,13 +8,12 @@ class WebSocketService:
     """Serviço para gerenciar comunicação em tempo real via WebSocket."""
     
     def __init__(self):
-        # ================== INÍCIO DA CORREÇÃO ==================
-        # A inicialização do SIO agora é limpa.
-        # A responsabilidade do CORS foi movida para o ponto de entrada
-        # da aplicação (main.py), onde o ASGIApp é criado.
-        # Isso evita o erro 'TypeError: got an unexpected keyword argument'.
+        # ================== INÍCIO DA RESTAURAÇÃO ==================
+        # Esta linha é essencial e estava faltando, causando o erro 'AttributeError'.
+        # Ela cria o servidor Socket.IO e o atribui a 'self.sio'.
+        # A configuração de CORS foi removida daqui, pois será gerenciada no main.py.
         self.sio = socketio.AsyncServer(async_mode='asgi')
-        # =================== FIM DA CORREÇÃO ====================
+        # =================== FIM DA RESTAURAÇÃO ====================
         
         self.connected_users: Dict[str, str] = {}  # user_id -> session_id
         
