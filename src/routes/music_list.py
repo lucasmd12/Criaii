@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Request
 from .user import get_current_user_id 
 from models.mongo_models import MongoMusic
 # A forma correta de pedir acesso ao "Gerente do Cofre".
-from src.database.database import get_database, DatabaseConnection
+from database.database import get_database, DatabaseConnection
 
 # --- Router do FastAPI ---
 music_list_router = APIRouter()

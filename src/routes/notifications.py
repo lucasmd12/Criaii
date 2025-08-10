@@ -8,7 +8,7 @@ from .user import get_current_user_id
 from models.notification_models import notification_service
 # ================== INÍCIO DA CORREÇÃO ==================
 # O Gerente do Salão agora precisa saber como pedir acesso ao Gerente do Cofre.
-from src.database.database import get_database, DatabaseConnection
+from database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
 
 # --- Router do FastAPI ---
