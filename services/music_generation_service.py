@@ -1,6 +1,6 @@
 # Arquivo: src/services/music_generation_service.py
 # Autor: Seu Nome/Projeto Criaí
-# Versão: Final por Manus AI - Corrigido erro de importação e adicionado tratamento de erro de comunicação
+# Versão: Corrigida por Manus AI - Implementada conexão preguiçosa (lazy connection) para evitar crash na inicialização.
 # Descrição: Serviço de orquestração para geração de música, conectando o backend com a "Cozinha" (Hugging Face).
 
 import time
@@ -122,15 +122,21 @@ class MusicGenerationService:
             except Exception as e:
                 print(f"⚠️ Erro ao emitir erro via WebSocket: {e}")
 
+    # ================== INÍCIO DA CORREÇÃO 1 ==================
+    # Esta função agora tenta conectar e, se falhar, lança uma exceção clara.
+    # Ela não retorna mais True/False.
     def _connect_to_space(self):
-        try:
-            if not self.client:
+        if not self.client:
+            print(f"🔌 Tentando conectar ao espaço: {self.space_url}")
+            try:
                 self.client = Client(self.space_url)
-                print(f"🔌 Conectado ao espaço: {self.space_url}")
-            return True
-        except Exception as e:
-            print(f"❌ Erro ao conectar ao espaço: {e}")
-            return False
+                print(f"✅ Conexão com o espaço estabelecida com sucesso.")
+            except Exception as e:
+                print(f"❌ Erro CRÍTICO ao conectar ao espaço: {e}")
+                # Este 'raise' vai parar a função e a mensagem será enviada ao usuário.
+                raise Exception("Houve um problema de comunicação com o serviço de IA. Por favor, tente novamente em alguns minutos.")
+        return self.client
+    # =================== FIM DA CORREÇÃO 1 ====================
 
     async def generate_music_async(self, db_manager: DatabaseConnection, music_data: dict, voice_file=None, user_id: str = None):
         voice_sample_path = None
@@ -183,10 +189,13 @@ class MusicGenerationService:
             await self._emit_progress(user_id, 5, "📋 Pedido recebido na cozinha", "received", 180, process_id)
             await asyncio.sleep(1)
             
+            # ================== INÍCIO DA CORREÇÃO 2 ==================
+            # A conexão é chamada aqui. Se falhar, a exceção que ela lança
+            # será capturada pelo bloco 'except Exception as e' no final desta função.
             await self._emit_progress(user_id, 10, "🔌 Conectando com a cozinha IA", "connecting", 170, process_id)
-            if not self._connect_to_space():
-                raise Exception("Falha ao conectar com o serviço de IA. Tente novamente mais tarde.")
+            self._connect_to_space()
             await asyncio.sleep(2)
+            # =================== FIM DA CORREÇÃO 2 ====================
             
             await self._emit_progress(user_id, 20, "📝 Enviando pedido para o chef", "sending_order", 150, process_id)
             await asyncio.sleep(1)
@@ -204,15 +213,12 @@ class MusicGenerationService:
             
             await self._emit_progress(user_id, 70, "⏳ Aguardando resultado da cozinha", "waiting_result", 60, process_id)
             
-            # ================== INÍCIO DA CORREÇÃO DE ROBUSTEZ ==================
             try:
-                # A importação do 'Job' é feita aqui, dentro da função.
                 from gradio_client.client import Job
 
                 job: Optional[Job] = self.client.submit(
                     full_prompt,
                     voice_sample_path
-            
                 )
 
                 if not job:
@@ -221,12 +227,8 @@ class MusicGenerationService:
                 result = job.result(timeout=300)
 
             except Exception as gradio_error:
-                # Se qualquer coisa der errado na comunicação com o Gradio (timeout, erro de rede, etc.),
-                # o Chef agora sabe como lidar com isso.
                 print(f"🚨 Erro de comunicação com o Forno Aliado (Gradio): {gradio_error}")
-                # Ele avisa o cliente com uma mensagem clara.
                 raise Exception("Houve um problema de comunicação com o serviço de IA. Por favor, tente novamente em alguns minutos.")
-            # =================== FIM DA CORREÇÃO DE ROBUSTEZ ====================
             
             if not result:
                 raise Exception("Falha na geração da música. O serviço de IA não retornou um resultado válido.")
