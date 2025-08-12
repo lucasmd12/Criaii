@@ -1,6 +1,7 @@
 # src/models/mongo_models.py (As Fichas e Receitas, agora com selo de qualidade Pydantic)
 
 import os
+import json # Importar a biblioteca JSON
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import jwt
@@ -26,13 +27,24 @@ class MongoBaseModel(BaseModel):
         # Permite que o Pydantic funcione bem com os objetos do MongoDB
         populate_by_name = True
         arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+        # CORREÇÃO 1: Adicionar um encoder para o tipo datetime
+        json_encoders = {
+            ObjectId: str,
+            datetime: lambda v: v.isoformat()
+        }
 
     def to_dict(self) -> dict:
-        """Converte a ficha (modelo) para um dicionário, garantindo que o ID seja uma string."""
-        data = self.model_dump(by_alias=True, exclude_none=True)
+        """
+        Converte a ficha (modelo) para um dicionário, garantindo que todos os campos
+        sejam compatíveis com JSON (serializáveis).
+        """
+        # CORREÇÃO 2: Usar model_dump_json para aplicar os encoders
+        # Isso converte ObjectId e datetime para strings de forma confiável.
+        data_json_string = self.model_dump_json(by_alias=True)
+        data = json.loads(data_json_string)
+        
         if '_id' in data:
-            data['id'] = str(data['_id'])
+            data['id'] = data['_id']
             del data['_id']
         return data
 
