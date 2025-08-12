@@ -1,18 +1,54 @@
-# src/models/mongo_models.py (Versão Corrigida)
+# src/models/mongo_models.py (As Fichas e Receitas, agora com selo de qualidade Pydantic)
 
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import jwt
 from bson import ObjectId
+from pydantic import BaseModel, Field
+from typing import Optional, List, Any
 
-# Importamos a classe de conexão para usar como "type hint" (dica de tipo).
+# Importamos a classe de conexão para usar como "type hint"
 from database.database import DatabaseConnection
 
-class MongoUser:
+# =================================================================
+# CLASSE BASE COMUM (Inspirada no Guia)
+# =================================================================
+
+class MongoBaseModel(BaseModel):
+    """
+    Uma ficha de registro base com selo de qualidade Pydantic.
+    Garante que todos os registros tenham um ID e possam ser convertidos para dicionário.
+    """
+    id: Optional[ObjectId] = Field(None, alias='_id')
+
+    class Config:
+        # Permite que o Pydantic funcione bem com os objetos do MongoDB
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+    def to_dict(self) -> dict:
+        """Converte a ficha (modelo) para um dicionário, garantindo que o ID seja uma string."""
+        data = self.model_dump(by_alias=True, exclude_none=True)
+        if '_id' in data:
+            data['id'] = str(data['_id'])
+            del data['_id']
+        return data
+
+# =================================================================
+# MODELO DE USUÁRIO (Sua Classe + Pydantic)
+# =================================================================
+
+class MongoUser(MongoBaseModel):
+    """A ficha de registro de um cliente, com validação de dados."""
+    username: str
+    password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
     @classmethod
-    async def create_user(cls, db_manager: DatabaseConnection, username: str, password: str):
-        """Cria um novo usuário, usando o cofre fornecido pelo Gerente."""
+    async def create_user(cls, db_manager: DatabaseConnection, username: str, password: str) -> Optional['MongoUser']:
+        """Cria um novo usuário, usando o cofre e retornando uma ficha validada."""
         if db_manager.db is None:
             print("⚠️ Gerente indisponível, operação de criar usuário não realizada.")
             return None
@@ -29,85 +65,50 @@ class MongoUser:
         
         result = await users_collection.insert_one(user_data)
         user_data["_id"] = result.inserted_id
-        return user_data
-    
-    @classmethod
-    async def find_by_username(cls, db_manager: DatabaseConnection, username: str):
-        """Busca usuário por username, usando o cofre fornecido pelo Gerente."""
-        if db_manager.db is None: 
-            return None
-        return await db_manager.db.users.find_one({"username": username})
-    
-    @classmethod
-    async def find_by_id(cls, db_manager: DatabaseConnection, user_id: str):
-        """Busca usuário por ID, usando o cofre fornecido pelo Gerente."""
-        if db_manager.db is None: 
-            return None
-        return await db_manager.db.users.find_one({"_id": ObjectId(user_id)})
-    
-    @staticmethod
-    def check_password(user, password):
-        """Verifica se a senha está correta (não precisa de acesso ao DB)."""
-        return check_password_hash(user["password_hash"], password)
-    
-    @staticmethod
-    def to_dict(user):
-        """Converte usuário para dicionário (não precisa de acesso ao DB)."""
-        if not user: 
-            return None
-        return {
-            "id": str(user["_id"]),
-            "username": user["username"],
-            "created_at": user["created_at"].isoformat() if user.get("created_at") else None
-        }
+        return cls(**user_data) # Retorna uma instância da classe, não um dicionário
 
-class MongoMusic:
     @classmethod
-    async def create_music(cls, db_manager: DatabaseConnection, user_id: str, music_data: dict):
-        """Cria uma nova música, registrando no cofre fornecido pelo Gerente."""
-        if db_manager.db is None:
-            print("⚠️ Gerente indisponível, operação de criar música não realizada.")
-            return None
+    async def find_by_username(cls, db_manager: DatabaseConnection, username: str) -> Optional['MongoUser']:
+        """Busca usuário e retorna uma ficha validada."""
+        if db_manager.db is None: return None
+        user_data = await db_manager.db.users.find_one({"username": username})
+        return cls(**user_data) if user_data else None
+    
+    @classmethod
+    async def find_by_id(cls, db_manager: DatabaseConnection, user_id: str) -> Optional['MongoUser']:
+        """Busca usuário por ID e retorna uma ficha validada."""
+        if db_manager.db is None: return None
+        try:
+            user_data = await db_manager.db.users.find_one({"_id": ObjectId(user_id)})
+            return cls(**user_data) if user_data else None
+        except Exception:
+            return None # Retorna None se o ObjectId for inválido
 
-        musics_collection = db_manager.db.musics
-        music_doc = {
-            "userId": user_id,
-            "music_url": music_data.get("musicUrl"),
-            "music_name": music_data.get("musicName", "Música Sem Título"),
-            "description": music_data.get("description", ""),
-            "lyrics": music_data.get("lyrics", ""),
-            "voice_type": music_data.get("voiceType", "instrumental"),
-            "created_at": datetime.utcnow(),
-            "timestamp": music_data.get("timestamp", int(datetime.utcnow().timestamp()))
-        }
-        
-        result = await musics_collection.insert_one(music_doc)
-        music_doc["_id"] = result.inserted_id
-        return music_doc
-    
+    def check_password(self, password: str) -> bool:
+        """Verifica a senha contra o hash na ficha."""
+        return check_password_hash(self.password_hash, password)
+
+# =================================================================
+# MODELO DE MÚSICA (Sua Classe + Pydantic)
+# =================================================================
+
+class MongoMusic(MongoBaseModel):
+    """A receita de uma música, com validação de ingredientes."""
+    userId: str
+    music_url: Optional[str] = None
+    music_name: str
+    description: str
+    lyrics: Optional[str] = None
+    voice_type: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: int
+
     @classmethod
-    async def find_by_user(cls, db_manager: DatabaseConnection, user_id: str):
-        """Busca músicas de um usuário, usando o cofre fornecido pelo Gerente."""
-        if db_manager.db is None: 
-            return []
-        cursor = db_manager.db.musics.find({"userId": user_id}).sort("created_at", -1)
-        return await cursor.to_list(length=None)
-    
-    @classmethod
-    async def find_all(cls, db_manager: DatabaseConnection):
-        """Busca todas as músicas, usando o cofre fornecido pelo Gerente."""
-        if db_manager.db is None: 
-            return []
-        cursor = db_manager.db.musics.find().sort("created_at", -1)
-        return await cursor.to_list(length=None)
-    
-    # ================== INÍCIO DA CORREÇÃO ==================
-    # A função do "Arquivista" foi movida para cá, seu lugar correto.
-    # Agora é um método da classe MongoMusic, pois sua responsabilidade
-    # é registrar uma nova música no banco de dados.
-    @classmethod
-    async def add_generated_music(cls, db_manager: DatabaseConnection, music_data: dict):
-        """Registra uma nova música gerada no banco de dados."""
+    async def add_generated_music(cls, db_manager: DatabaseConnection, music_data: dict) -> Optional['MongoMusic']:
+        """
+        O Arquivista registra uma nova receita no livro, retornando uma ficha validada.
+        (Seu método original, agora retornando um objeto Pydantic)
+        """
         music_name_for_log = music_data.get('musicName', 'Sem título')
         print(f"✍️ Arquivista: Registrando o prato '{music_name_for_log}' no livro de receitas.")
         
@@ -115,52 +116,53 @@ class MongoMusic:
             print("⚠️ Gerente indisponível, não foi possível registrar a música.")
             return None
         
-        # Reutiliza a lógica de 'create_music' para evitar duplicação de código.
-        # Se 'create_music' já faz o que precisamos, podemos simplesmente chamá-la.
-        # No entanto, para manter a lógica original, vamos recriá-la aqui.
         user_id = music_data.get("userId")
         if not user_id:
             print(f"❌ Arquivista: Tentativa de registrar um prato sem identificação do cliente. Registro cancelado.")
             return None
 
         try:
-            # A lógica de criação do documento é a mesma de create_music
-            return await cls.create_music(db_manager, user_id, music_data)
+            music_doc = {
+                "userId": user_id,
+                "music_url": music_data.get("musicUrl"),
+                "music_name": music_data.get("musicName", "Música Sem Título"),
+                "description": music_data.get("description", ""),
+                "lyrics": music_data.get("lyrics", ""),
+                "voice_type": music_data.get("voiceType", "instrumental"),
+                "created_at": datetime.utcnow(),
+                "timestamp": music_data.get("timestamp", int(datetime.utcnow().timestamp()))
+            }
+            result = await db_manager.db.musics.insert_one(music_doc)
+            music_doc["_id"] = result.inserted_id
+            return cls(**music_doc) # Retorna uma instância da classe
         except Exception as error:
             print(f"🚨 Arquivista: Falha crítica ao tentar registrar o prato '{music_name_for_log}': {error}")
             return None
-    # =================== FIM DA CORREÇÃO ====================
 
-    @staticmethod
-    def to_dict(music):
-        """Converte música para dicionário (não precisa de acesso ao DB)."""
-        if not music: 
-            return None
-        return {
-            "id": str(music["_id"]),
-            "user_id": music.get("userId"),
-            "music_url": music.get("music_url"),
-            "music_name": music.get("music_name"),
-            "description": music.get("description"),
-            "lyrics": music.get("lyrics"),
-            "voice_type": music.get("voice_type"),
-            "created_at": music["created_at"].isoformat() if music.get("created_at") else None,
-            "timestamp": music.get("timestamp")
-        }
+    @classmethod
+    async def find_by_user(cls, db_manager: DatabaseConnection, user_id: str) -> List['MongoMusic']:
+        """Busca todas as receitas de um cliente."""
+        if db_manager.db is None: return []
+        cursor = db_manager.db.musics.find({"userId": user_id}).sort("created_at", -1)
+        music_list = await cursor.to_list(length=None)
+        return [cls(**music) for music in music_list]
 
-# As funções de token não dependem do banco de dados, então podem continuar como estão.
-def generate_token(user_id):
+# =================================================================
+# FUNÇÕES DE TOKEN (Sua lógica original, sem alterações)
+# =================================================================
+
+def generate_token(user_id: str) -> str:
+    """Gera um crachá de acesso para o cliente."""
     payload = {
         'user_id': str(user_id),
         'exp': datetime.utcnow() + timedelta(days=7)
     }
     return jwt.encode(payload, os.getenv('SECRET_KEY', 'alquimista-musical-secret-key-2024'), algorithm='HS256')
 
-def verify_token(token):
+def verify_token(token: str) -> Optional[str]:
+    """Verifica a validade de um crachá de acesso."""
     try:
         payload = jwt.decode(token, os.getenv('SECRET_KEY', 'alquimista-musical-secret-key-2024'), algorithms=['HS256'])
         return payload['user_id']
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
