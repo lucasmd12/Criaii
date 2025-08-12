@@ -1,4 +1,4 @@
-# Arquivo: src/main.py (VERSÃO 100% CORRETA COM DEPENDENCY INJECTION)
+# Arquivo: main.py (VERSÃO CORRIGIDA E COMPLETA)
 # Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
@@ -99,34 +99,41 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Inclusão das Rotas
+# Inclusão das Rotas de API
 app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
 app.include_router(music_router, prefix="/api/music", tags=["Garçom (Geração de Música)"])
 app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playlists)"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
 
-# Lógica para servir o Frontend
-# CORREÇÃO: O caminho para 'static' deve subir um nível a partir de 'src'
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
-FRONTEND_BUILD_DIR = os.path.join(STATIC_DIR, "dist")
+# --- LÓGICA CORRIGIDA PARA SERVIR O FRONTEND ---
+# O backend (main.py) e a pasta 'static' estão na mesma raiz.
+# O build do frontend cria a pasta 'dist' dentro de 'static'.
+# Portanto, o caminho relativo correto é 'static/dist'.
+FRONTEND_BUILD_DIR = "static/dist"
 
+# Verifica se o diretório de build do frontend realmente existe
 if os.path.exists(FRONTEND_BUILD_DIR):
+    # Monta a pasta de assets (CSS, JS) do build do frontend
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
+
+    # Rota "catch-all" para servir o index.html e permitir o roteamento do React
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_react_app(full_path: str):
         index_path = os.path.join(FRONTEND_BUILD_DIR, "index.html")
         if not os.path.exists(index_path):
-            raise HTTPException(status_code=404, detail="index.html not found")
+            raise HTTPException(status_code=404, detail=f"Interface (index.html) não encontrada em {index_path}")
         return FileResponse(index_path)
-    print(f"✅ Fachada do Restaurante (Frontend) configurada para ser servida de: {FRONTEND_BUILD_DIR}")
+    
+    print(f"✅ Fachada do Restaurante (Frontend) configurada para ser servida de: {os.path.abspath(FRONTEND_BUILD_DIR)}")
 else:
+    # Este aviso é útil para depuração se o build do frontend falhar
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    print(f"!! AVISO: Fachada do Restaurante (Frontend) não encontrada em: {FRONTEND_BUILD_DIR}")
-    print(f"!! Verificando em: {STATIC_DIR}")
+    print(f"!! AVISO: Diretório de build do Frontend não encontrado em: {os.path.abspath(FRONTEND_BUILD_DIR)}")
+    print("!! Verifique se o comando 'npm run build' foi executado com sucesso na pasta 'static'.")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 # Ponto de Entrada ASGI
-# O `socketio.ASGIApp` ainda é necessário para o transporte do Socket.IO funcionar corretamente.
+# O `socketio.ASGIApp` envolve o app FastAPI para lidar com o transporte do Socket.IO.
 sio = websocket_service.sio
 application = socketio.ASGIApp(sio, other_asgi_app=app)
