@@ -10,6 +10,8 @@ from models.notification_models import notification_service
 # O Gerente do Salão agora precisa saber como pedir acesso ao Gerente do Cofre.
 from database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
+# ADICIONADO: Importamos o SyncService para notificar o frontend em tempo real
+from services.sync_service import SyncService
 
 # --- Router do FastAPI ---
 notifications_router = APIRouter()
@@ -85,6 +87,8 @@ async def get_unread_count(
 async def mark_notifications_as_read(
     user_id: str = Depends(get_current_user_id),
     db_manager: DatabaseConnection = Depends(get_database),
+    # ADICIONADO: Injetamos o SyncService para notificar o frontend
+    sync_service: SyncService = Depends(),
     notification_ids: Optional[List[str]] = None
 ):
     """Gerente arquivando avisos antigos do painel do cliente."""
@@ -97,6 +101,15 @@ async def mark_notifications_as_read(
             await notification_service.mark_notifications_as_read(db_manager, user_id)
         
         print(f"✅ Gerente: Avisos do cliente {user_id} foram arquivados com sucesso.")
+        
+        # ADICIONADO: Publicamos um evento para o frontend saber que precisa recarregar as notificações
+        await sync_service.publish_event(
+            event_type="notifications_updated",
+            user_id=user_id,
+            payload={"message": "Suas notificações foram atualizadas."}
+        )
+        print(f"📡 Gerente enviou uma comanda eletrônica: 'Avisar cliente {user_id} para checar seu painel de avisos.'")
+
         return {"message": "Avisos arquivados com sucesso!"}
     except Exception as e:
         print(f"🚨 Gerente: Erro ao arquivar avisos para o cliente {user_id}: {e}")

@@ -10,6 +10,8 @@ from .user import get_current_user_id
 # O Garçom precisa saber como pedir acesso ao Gerente do Cofre para entregar à Cozinha.
 from database.database import get_database, DatabaseConnection
 # =================== FIM DA CORREÇÃO ====================
+# ADICIONADO: Importamos o CacheService para que o Garçom possa falar com o Buffet
+from services.cache_service import CacheService
 
 # --- Router do FastAPI ---
 music_router = APIRouter()
@@ -25,6 +27,8 @@ async def generate_music(
     # O Garçom agora também pega a "chave do cofre" (db_manager) para a Cozinha usar mais tarde.
     db_manager: DatabaseConnection = Depends(get_database),
     # =================== FIM DA CORREÇÃO ====================
+    # ADICIONADO: O Garçom agora tem uma linha direta com o Gerente do Buffet
+    cache_service: CacheService = Depends(),
     
     # Campos obrigatórios
     description: str = Form(..., description="Descrição/prompt da música (essência)"),
@@ -106,6 +110,10 @@ async def generate_music(
             user_id=current_user_id
         )
         # =================== FIM DA CORREÇÃO ====================
+
+        # ADICIONADO: O Garçom avisa o Buffet para limpar o cardápio antigo do cliente.
+        await cache_service.invalidate_user_music_list(current_user_id)
+        print(f"🧹 Garçom avisou o Buffet: 'O cardápio do cliente {current_user_id} mudou, jogue fora a versão antiga!'")
         
         print(f"👍 Garçom: Pedido da música \'{musicName}\' foi entregue na Cozinha. Informando o cliente.")
         
