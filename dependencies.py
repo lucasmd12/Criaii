@@ -55,5 +55,16 @@ def get_notification_service(request: Request) -> "NotificationService":
     print("📢 Funcionário solicitou acesso ao Painel de Avisos (Notification)")
     return request.app.state.notification_service
 
+# <<< INÍCIO DA CORREÇÃO >>>
+# Adicionando a função de dependência para o PresenceService
+def get_presence_service(request: Request) -> "PresenceService":
+    """Maître D' fornece acesso ao Gerente de Salão (Presence)"""
+    if not hasattr(request.app.state, 'presence_service'):
+        raise HTTPException(status_code=500, detail="❌ Gerente de Salão (Presence) não está disponível!")
+    print("👥 Funcionário solicitou acesso ao Gerente de Salão (Presence)")
+    return request.app.state.presence_service
+# <<< FIM DA CORREÇÃO >>>
+
+
 # Adicione aqui outras funções 'get' para os serviços que suas rotas precisam,
 # como get_cloudinary_service, se necessário.
