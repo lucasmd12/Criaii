@@ -1,4 +1,4 @@
-# Arquivo: src/services/music_generation_service.py (VERSÃO HÍBRIDA - Etapa 6)
+# Arquivo: src/services/music_generation_service.py (VERSÃO CORRIGIDA)
 # Função: O Chef de Cozinha - Orquestra a criação de músicas, se comunica com a IA e
 # publica os resultados no sistema de comandas.
 
@@ -8,7 +8,11 @@ import io
 import time
 from typing import Optional
 import soundfile as sf
-from gradio_client import Client, Job
+# --- CORREÇÃO DE IMPORTAÇÃO ---
+# Apenas o 'Client' é importado diretamente.
+from gradio_client import Client
+# O 'Job' é importado de um submódulo para type hinting.
+from gradio_client.client import Job
 
 # Importamos as CLASSES dos serviços que ele vai usar
 from services.cloudinary_service import CloudinaryService
