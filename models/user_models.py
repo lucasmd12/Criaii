@@ -1,22 +1,66 @@
 # src/models/user_models.py (O Livro de Registros de Clientes)
 # Autor: Projeto Alquimista Musical
 # Versão: Migração completa para MongoDB - Seguindo a harmonia do projeto
-# Descrição: Modelo de usuário para MongoDB, integrado com a arquitetura do estúdio musical
+# Descrição: Modelo de usuário para MongoDB, integrado com a arquitetura do estúdio musical, agora com validação Pydantic.
 
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from bson import ObjectId
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 
 # Importa a classe de conexão com o banco de dados para tipagem e uso.
 from database.database import DatabaseConnection
+# Importa a classe base para herdar suas funcionalidades
+from .mongo_models import MongoBaseModel
 
-class UserModel:
+# =================================================================
+# SUB-MODELOS PARA ESTRUTURAS ANINHADAS (Pydantic)
+# =================================================================
+
+class UserPreferences(BaseModel):
+    """Preferências do cliente, agora com tipos definidos."""
+    favorite_genres: List[str] = Field(default_factory=list)
+    preferred_voice_type: str = "instrumental"
+    notification_settings: Dict[str, bool] = Field(default_factory=lambda: {
+        "email_notifications": True,
+        "push_notifications": True,
+        "music_completion": True,
+        "process_updates": True
+    })
+
+class UserProfile(BaseModel):
+    """Perfil do cliente, agora com tipos definidos."""
+    display_name: str
+    bio: str = ""
+    avatar_url: str = ""
+    preferences: UserPreferences = Field(default_factory=UserPreferences)
+
+class UserStats(BaseModel):
+    """Estatísticas do cliente, agora com tipos definidos."""
+    total_musics_generated: int = 0
+    total_time_in_studio: int = 0
+    favorite_genre: Optional[str] = None
+    last_activity: datetime = Field(default_factory=datetime.utcnow)
+
+# =================================================================
+# MODELO PRINCIPAL DE USUÁRIO (Sua Classe + Pydantic)
+# =================================================================
+
+class UserModel(MongoBaseModel):
     """
     🎭 O Livro de Registros de Clientes do Alquimista Musical
     
     Esta classe gerencia todos os aspectos relacionados aos usuários/clientes do estúdio,
-    seguindo a mesma filosofia e estrutura dos outros modelos do projeto.
+    agora com a robustez e validação de dados do Pydantic.
     """
+    username: str
+    password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+    is_active: bool = True
+    profile: UserProfile
+    stats: UserStats = Field(default_factory=UserStats)
 
     @classmethod
     async def create_user(cls, db_manager: DatabaseConnection, username: str, password: str, additional_data: dict = None):
@@ -27,13 +71,10 @@ class UserModel:
 
         users_collection = db_manager.db.users
         
-        # Verifica se o cliente já está registrado
-        existing_user = await users_collection.find_one({"username": username})
-        if existing_user:
+        if await users_collection.find_one({"username": username}):
             print(f"⚠️ Cliente '{username}' já está registrado no estúdio.")
             return None
         
-        # Prepara os dados do novo cliente
         user_data = {
             "username": username,
             "password_hash": generate_password_hash(password),
@@ -63,12 +104,13 @@ class UserModel:
             }
         }
         
-        # Adiciona dados extras se fornecidos
         if additional_data:
             user_data.update(additional_data)
         
         try:
-            result = await users_collection.insert_one(user_data)
+            # A validação Pydantic acontece aqui, antes de salvar
+            validated_user = cls(**user_data)
+            result = await users_collection.insert_one(validated_user.model_dump(by_alias=True))
             user_data["_id"] = result.inserted_id
             print(f"✅ Cliente '{username}' registrado com sucesso no estúdio. ID: {result.inserted_id}")
             return user_data
@@ -186,6 +228,11 @@ class UserModel:
         if not user: 
             return None
         
+        # Se o objeto já for uma instância do nosso modelo Pydantic, usa o método da instância
+        if isinstance(user, cls):
+            return user.model_dump(by_alias=True)
+
+        # Se for um dicionário do banco, mantém a lógica original
         return {
             "id": str(user["_id"]),
             "username": user["username"],
@@ -202,6 +249,20 @@ class UserModel:
         if not user:
             return None
         
+        # Se o objeto já for uma instância do nosso modelo Pydantic, usa o método da instância
+        if isinstance(user, cls):
+            return {
+                "id": str(user.id),
+                "username": user.username,
+                "display_name": user.profile.display_name,
+                "bio": user.profile.bio,
+                "avatar_url": user.profile.avatar_url,
+                "total_musics": user.stats.total_musics_generated,
+                "favorite_genre": user.stats.favorite_genre,
+                "member_since": user.created_at.isoformat() if user.created_at else None
+            }
+
+        # Se for um dicionário do banco, mantém a lógica original
         return {
             "id": str(user["_id"]),
             "username": user["username"],
@@ -215,5 +276,3 @@ class UserModel:
 
 # Nota: As funções generate_token e verify_token já estão definidas em /models/mongo_models.py
 # e devem ser importadas de lá diretamente para evitar duplicação de código.
-
-
