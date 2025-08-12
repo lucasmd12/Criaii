@@ -3,7 +3,7 @@
 
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from models.notification_models import Notification, ProcessHistory
+from models.notification_models import Notification, ProcessHistory, notification_service as archivist_service
 # ADICIONADO: Importamos as CLASSES dos serviços com os quais ele vai interagir
 from services.sync_service import SyncService
 from database.database import DatabaseConnection # Para type hinting
