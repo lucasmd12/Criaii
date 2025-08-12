@@ -1,4 +1,4 @@
-# Arquivo: src/main.py (SUA VERSÃO ATUAL, COM A CORREÇÃO DE SINTAXE)
+# Arquivo: src/main.py (VERSÃO FINAL COM CAMINHO CORRIGIDO)
 # Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
@@ -10,8 +10,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from redis import asyncio as aioredis
 import socketio
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware # Importação para CORS
 
+# Carregar variáveis de ambiente no início de tudo
 load_dotenv()
 
 # Suas importações de rotas e serviços
@@ -32,7 +33,7 @@ from services.sync_service import SyncService
 from services.cache_service import CacheService
 from database.database import db_manager
 
-# --- CONFIGURAÇÃO DE CORS (fica aqui em cima) ---
+# --- CONFIGURAÇÃO DE CORS ---
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -53,11 +54,7 @@ async def lifespan(app: FastAPI):
     app.state.presence_service = PresenceService(app.state.redis_service)
     app.state.cache_service = CacheService(app.state.redis_service)
     
-    # <<< INÍCIO DA CORREÇÃO >>>
-    # Passa a lista de origens para o serviço de websocket ANTES de usá-lo
-    websocket_service.set_allowed_origins(origins)
-    # <<< FIM DA CORREÇÃO >>>
-
+    websocket_service.set_allowed_origins(origins) # Configura CORS para WebSocket
     websocket_service.set_presence_service(app.state.presence_service)
     app.state.websocket_service = websocket_service
     
@@ -85,7 +82,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alquimista Musical API",
     description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
-    version="3.0.2-Final-CORS",
+    version="3.0.3-Final",
     lifespan=lifespan
 )
 
@@ -97,16 +94,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Suas rotas
 app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
 app.include_router(music_router, prefix="/api/music", tags=["Garçom (Geração de Música)"])
 app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playlists)"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
 
-# Sua lógica para servir o frontend
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
-FRONTEND_BUILD_DIR = os.path.join(STATIC_DIR, "dist")
+# <<< INÍCIO DA CORREÇÃO DO CAMINHO >>>
+# Esta é a forma mais robusta de encontrar a pasta do frontend.
+# Ela assume que a pasta 'dist' está na raiz do seu projeto.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "dist")
+# <<< FIM DA CORREÇÃO DO CAMINHO >>>
+
 if os.path.exists(FRONTEND_BUILD_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
     @app.get("/{full_path:path}", include_in_schema=False)
@@ -115,11 +115,11 @@ if os.path.exists(FRONTEND_BUILD_DIR):
         if not os.path.exists(index_path):
             raise HTTPException(status_code=404, detail="index.html not found")
         return FileResponse(index_path)
+    print(f"✅ Fachada do Restaurante (Frontend) configurada para ser servida de: {FRONTEND_BUILD_DIR}")
 else:
-    print("!! AVISO: Fachada do Restaurante (Frontend) não encontrada !!")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(f"!! AVISO: Fachada do Restaurante (Frontend) não encontrada em: {FRONTEND_BUILD_DIR}")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-# <<< INÍCIO DA CORREÇÃO >>>
-# O ASGIApp agora não tem mais o argumento inválido.
 sio = websocket_service.sio
 application = socketio.ASGIApp(sio, other_asgi_app=app)
-# <<< FIM DA CORREÇÃO >>>
