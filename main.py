@@ -1,4 +1,5 @@
-# Arquivo: src/main.py (VERSÃO FINAL E CORRETA)
+# Arquivo: src/main.py (SUA VERSÃO ATUAL, COM A CORREÇÃO DE SINTAXE)
+# Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
 import asyncio
@@ -13,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-# ... (todas as suas importações de rotas e serviços) ...
+# Suas importações de rotas e serviços
 from routes.user import user_router
 from routes.music import music_router
 from routes.music_list import music_list_router
@@ -83,7 +84,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Alquimista Musical API",
-    description="API para o projeto Alquimista Musical",
+    description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
     version="3.0.2-Final-CORS",
     lifespan=lifespan
 )
@@ -96,12 +97,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ... (suas rotas e a lógica de servir o frontend permanecem iguais) ...
+# Suas rotas
 app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
 app.include_router(music_router, prefix="/api/music", tags=["Garçom (Geração de Música)"])
 app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playlists)"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
+
+# Sua lógica para servir o frontend
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 FRONTEND_BUILD_DIR = os.path.join(STATIC_DIR, "dist")
 if os.path.exists(FRONTEND_BUILD_DIR):
