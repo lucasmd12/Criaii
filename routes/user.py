@@ -1,4 +1,4 @@
-# src/routes/user.py (O Recepcionista - VERSÃO HÍBRIDA OTIMIZADA)
+# src/routes/user.py (O Recepcionista - VERSÃO HÍBRIDA OTIMIZADA E CORRIGIDA)
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from typing import Optional
@@ -46,17 +46,17 @@ async def register(
     username = user_data.username.strip()
     print(f"🤵 Recepcionista: Recebendo um novo cliente para registro: '{username}'")
     
-    user = await MongoUser.create_user(db_manager, username, user_data.password)
-    if not user:
+    user_object = await MongoUser.create_user(db_manager, username, user_data.password)
+    if not user_object:
         print(f"⚠️ Recepcionista: Tentativa de registro com nome já existente: '{username}'")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Este nome já consta em nosso livro de reservas. Por favor, escolha outro.",
         )
     
-    user_id_str = str(user["_id"])
+    user_id_str = str(user_object.id)
     token = generate_token(user_id_str)
-    user_dict = MongoUser.to_dict(user)
+    user_dict = user_object.to_dict()
     
     await cache_service.set_user_data(user_id_str, user_dict)
     print(f"👨‍🍳 Recepcionista avisou o Buffet: Dados do novo cliente '{username}' já estão disponíveis para acesso rápido.")
@@ -74,17 +74,18 @@ async def login(
     username = user_data.username.strip()
     print(f"🤵 Recepcionista: Cliente '{username}' está tentando entrar no restaurante.")
     
-    user = await MongoUser.find_by_username(db_manager, username)
-    if not user or not MongoUser.check_password(user, user_data.password):
+    user_object = await MongoUser.find_by_username(db_manager, username)
+    
+    if not user_object or not user_object.check_password(user_data.password):
         print(f"🚫 Recepcionista: Acesso negado para '{username}'. Credenciais não conferem.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Nome de usuário ou senha não conferem com nosso livro de reservas.",
         )
         
-    user_id_str = str(user["_id"])
+    user_id_str = str(user_object.id)
     token = generate_token(user_id_str)
-    user_dict = MongoUser.to_dict(user)
+    user_dict = user_object.to_dict()
 
     await cache_service.set_user_data(user_id_str, user_dict)
     print(f"👨‍🍳 Recepcionista avisou o Buffet: Dados do cliente '{username}' foram atualizados para acesso rápido.")
@@ -108,12 +109,12 @@ async def get_profile(
 
     print("🤵 Recepcionista: Informações não estavam no Buffet. Indo até o cofre (MongoDB)...")
     
-    user = await MongoUser.find_by_id(db_manager, current_user_id)
-    if not user:
+    user_object = await MongoUser.find_by_id(db_manager, current_user_id)
+    if not user_object:
         print(f"❓ Recepcionista: Cliente com ID {current_user_id} não encontrado no livro de reservas.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Não encontramos seus dados em nosso sistema.")
     
-    user_dict = MongoUser.to_dict(user)
+    user_dict = user_object.to_dict()
     await cache_service.set_user_data(current_user_id, user_dict)
     print(f"👨‍🍳 Recepcionista avisou o Buffet: Dados do cliente '{user_dict.get('username')}' agora estão disponíveis para acesso rápido.")
     
