@@ -1,4 +1,4 @@
-# Arquivo: src/main.py (VERSÃO FINAL, COMPLETA E CORRETA)
+# Arquivo: src/main.py (VERSÃO FINAL, COM A LINHA DO ERRO REMOVIDA)
 
 import os
 import asyncio
@@ -31,11 +31,12 @@ from services.sync_service import SyncService
 from services.cache_service import CacheService
 from database.database import db_manager
 
-# --- CONFIGURAÇÃO DE CORS CORRETA E FINAL ---
+# --- CONFIGURAÇÃO DE CORS ---
+# Esta parte está correta e é necessária para o HTTP
 origins = [
-    "http://localhost:5173",  # Para teste local do frontend
-    "http://localhost:3000",  # Outra porta comum para teste local
-    "https://alquimistamusical.onrender.com" # <<< URL DE PRODUÇÃO ADICIONADA CORRETAMENTE
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://alquimistamusical.onrender.com"
 ]
 
 @asynccontextmanager
@@ -79,7 +80,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alquimista Musical API",
     description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
-    version="3.0.4-Final-CORS-and-Path",
+    version="3.0.5-Final-Fix",
     lifespan=lifespan
 )
 
@@ -117,10 +118,11 @@ else:
     print(f"!! AVISO: Fachada do Restaurante (Frontend) não encontrada em: {FRONTEND_BUILD_DIR}")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-# Ponto de Entrada ASGI com CORS para WebSocket
+# <<< INÍCIO DA CORREÇÃO >>>
+# Ponto de Entrada ASGI sem o argumento que causa o erro.
 sio = websocket_service.sio
 application = socketio.ASGIApp(
     sio, 
-    other_asgi_app=app,
-    cors_allowed_origins=origins
+    other_asgi_app=app
 )
+# <<< FIM DA CORREÇÃO >>>
