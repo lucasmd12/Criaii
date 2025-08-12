@@ -4,7 +4,7 @@
 import { useState, useEffect, createContext } from 'react';
 import MusicGenerator from './components/MusicGenerator';
 import LoginForm from './components/LoginForm';
-import { socketService } from './services/socketService'; // O rádio do restaurante
+import { socketService } from '@/services/socketService.js'; // O rádio do restaurante
 import './App.css';
 
 // Criamos o "Crachá Global" (Context) que todos os componentes poderão ler.
