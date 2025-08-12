@@ -1,10 +1,14 @@
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+// Arquivo: components/LoginForm.jsx (VERSÃO HÍBRIDA CORRETA E COMPLETA - Etapa 10)
+// Função: A Recepção do Restaurante - Onde os clientes se identificam.
+
+import { useState, useContext } from 'react'; // 1. Importamos o 'useContext'
+import { AuthContext } from '../App'; // 2. Importamos o "Crachá Global"
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Music, 
   User, 
@@ -12,38 +16,43 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2
-} from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const LoginForm = ({ onLogin }) => {
+// 3. O componente não recebe mais 'onLogin' como prop.
+const LoginForm = () => {
+  // 4. Ele pega a função 'handleLogin' diretamente do Contexto.
+  const { handleLogin: onLogin } = useContext(AuthContext);
+
   const [loginData, setLoginData] = useState({
     username: '',
     password: ''
-  })
+  });
   
   const [registerData, setRegisterData] = useState({
     username: '',
     password: '',
     confirmPassword: ''
-  })
+  });
   
-  const [isLoading, setIsLoading] = useState(false)
-  const [alert, setAlert] = useState(null)
+  const [isLoading, setIsLoading] = useState(false);
+  const [alert, setAlert] = useState(null);
 
   const showAlert = (type, message) => {
-    setAlert({ type, message })
-    setTimeout(() => setAlert(null), 5000)
-  }
+    setAlert({ type, message });
+    setTimeout(() => setAlert(null), 5000);
+  };
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  // Renomeado para evitar conflito com a variável do contexto.
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
     
     if (!loginData.username.trim() || !loginData.password.trim()) {
-      showAlert('error', 'Por favor, preencha todos os campos.')
-      return
+      showAlert('error', 'Por favor, preencha todos os campos.');
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const response = await fetch('/api/login', {
@@ -52,45 +61,47 @@ const LoginForm = ({ onLogin }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(loginData),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        showAlert('success', 'Login realizado com sucesso!')
+        showAlert('success', 'Login realizado com sucesso!');
+        // Sua lógica original de login, usando a função do contexto.
         setTimeout(() => {
-          onLogin(data.user, data.token)
-        }, 1000)
+          onLogin(data.user, data.token);
+        }, 1000);
       } else {
-        throw new Error(data.error || 'Erro ao fazer login')
+        throw new Error(data.error || 'Erro ao fazer login');
       }
     } catch (error) {
-      console.error('Erro no login:', error)
-      showAlert('error', error.message || 'Erro ao fazer login. Tente novamente.')
+      console.error('Erro no login:', error);
+      showAlert('error', error.message || 'Erro ao fazer login. Tente novamente.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
+  // Renomeado para evitar conflito.
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
     
     if (!registerData.username.trim() || !registerData.password.trim() || !registerData.confirmPassword.trim()) {
-      showAlert('error', 'Por favor, preencha todos os campos.')
-      return
+      showAlert('error', 'Por favor, preencha todos os campos.');
+      return;
     }
 
     if (registerData.password !== registerData.confirmPassword) {
-      showAlert('error', 'As senhas não coincidem.')
-      return
+      showAlert('error', 'As senhas não coincidem.');
+      return;
     }
 
     if (registerData.password.length < 6) {
-      showAlert('error', 'A senha deve ter pelo menos 6 caracteres.')
-      return
+      showAlert('error', 'A senha deve ter pelo menos 6 caracteres.');
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const response = await fetch('/api/register', {
@@ -102,25 +113,26 @@ const LoginForm = ({ onLogin }) => {
           username: registerData.username,
           password: registerData.password
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        showAlert('success', 'Conta criada com sucesso!')
+        showAlert('success', 'Conta criada com sucesso!');
+        // Sua lógica original de login automático após o registro é mantida.
         setTimeout(() => {
-          onLogin(data.user, data.token)
-        }, 1000)
+          onLogin(data.user, data.token);
+        }, 1000);
       } else {
-        throw new Error(data.error || 'Erro ao criar conta')
+        throw new Error(data.error || 'Erro ao criar conta');
       }
     } catch (error) {
-      console.error('Erro no registro:', error)
-      showAlert('error', error.message || 'Erro ao criar conta. Tente novamente.')
+      console.error('Erro no registro:', error);
+      showAlert('error', error.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
@@ -189,7 +201,7 @@ const LoginForm = ({ onLogin }) => {
                 </TabsList>
                 
                 <TabsContent value="login" className="space-y-4 mt-6">
-                  <form onSubmit={handleLogin} className="space-y-4">
+                  <form onSubmit={handleLoginSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="login-username" className="text-white">
                         Nome de usuário
@@ -242,7 +254,7 @@ const LoginForm = ({ onLogin }) => {
                 </TabsContent>
                 
                 <TabsContent value="register" className="space-y-4 mt-6">
-                  <form onSubmit={handleRegister} className="space-y-4">
+                  <form onSubmit={handleRegisterSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="register-username" className="text-white">
                         Nome de usuário
@@ -326,8 +338,7 @@ const LoginForm = ({ onLogin }) => {
         </motion.div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default LoginForm
-
+export default LoginForm;
