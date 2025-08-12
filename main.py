@@ -1,4 +1,5 @@
-# src/main.py (O Maître D' do Restaurante - VERSÃO FINAL COM CORS COMPLETO)
+# Arquivo: src/main.py (SUA VERSÃO ATUAL, COM A CORREÇÃO DE CORS)
+# Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
 import asyncio
@@ -9,19 +10,22 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from redis import asyncio as aioredis
 import socketio
+
+# <<< INÍCIO DA CORREÇÃO >>>
 from fastapi.middleware.cors import CORSMiddleware
+# <<< FIM DA CORREÇÃO >>>
 
 # Carregar variáveis de ambiente no início de tudo
 load_dotenv()
 
-# --- ROTAS ---
+# Rotas
 from routes.user import user_router
 from routes.music import music_router
 from routes.music_list import music_list_router
 from routes.notifications import notifications_router
 from routes.websocket import websocket_router
 
-# --- SERVIÇOS ---
+# Serviços
 from services.firebase_service import FirebaseService
 from services.cloudinary_service import CloudinaryService
 from services.websocket_service import websocket_service
@@ -32,19 +36,15 @@ from services.redis_service import RedisService
 from services.presence_service import PresenceService
 from services.sync_service import SyncService
 from services.cache_service import CacheService
-from services.voice_processing_service import voice_processing_service
 
-# --- BANCO DE DADOS ---
+# Banco de Dados
 from database.database import db_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    O ciclo de vida do restaurante: abertura (startup) e fechamento (shutdown).
-    """
     print("☀️  Bom dia! O Maître D' está abrindo o restaurante...")
 
-    # 1. Conectar ao Cofre (MongoDB)
+    # 1. Conectar ao Cofre (MongoDB) e guardar a chave no quadro
     await db_manager.connect()
     app.state.db_manager = db_manager
 
@@ -52,23 +52,15 @@ async def lifespan(app: FastAPI):
     redis_url = os.getenv("REDIS_URL")
     if not redis_url:
         raise RuntimeError("❌ ERRO CRÍTICO: REDIS_URL não configurada.")
+    
     redis_client = aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
     
     # 3. Contratar e apresentar a equipe, guardando as chaves no app.state
     print("🤝  Maître D' está organizando o quadro de chaves dos serviços...")
     
     app.state.redis_service = RedisService(redis_client)
-    app.state.cache_service = CacheService(app.state.redis_service)
     app.state.presence_service = PresenceService(app.state.redis_service)
-    
-    CloudinaryService.initialize()
-    app.state.cloudinary_service = CloudinaryService()
-    
-    FirebaseService.initialize()
-    app.state.firebase_service = FirebaseService()
-    
-    voice_processing_service.set_cloudinary_service(app.state.cloudinary_service)
-    app.state.voice_processing_service = voice_processing_service
+    app.state.cache_service = CacheService(app.state.redis_service)
     
     websocket_service.set_presence_service(app.state.presence_service)
     app.state.websocket_service = websocket_service
@@ -78,14 +70,16 @@ async def lifespan(app: FastAPI):
     notification_service.set_sync_service(app.state.sync_service)
     app.state.notification_service = notification_service
     
-    music_generation_service.set_dependencies(
-        sync_service=app.state.sync_service, 
-        notification_service=app.state.notification_service, 
-        cloudinary_service=app.state.cloudinary_service
-    )
-    app.state.music_generation_service = music_generation_service
-    
     keep_alive_service.set_redis_service(app.state.redis_service)
+    
+    CloudinaryService.initialize()
+    app.state.cloudinary_service = CloudinaryService()
+    
+    FirebaseService.initialize()
+    app.state.firebase_service = FirebaseService()
+    
+    music_generation_service.set_dependencies(app.state.sync_service, app.state.notification_service, app.state.cloudinary_service)
+    app.state.music_generation_service = music_generation_service
 
     # 4. Iniciar tarefas de fundo
     print("🚀  Maître D' está ligando os sistemas de fundo...")
@@ -96,25 +90,24 @@ async def lifespan(app: FastAPI):
     
     yield
 
-    # --- LÓGICA DE ENCERRAMENTO ---
     print("🌙  Boa noite! O Maître D' está encerrando os serviços...")
     keep_alive_service.stop()
     await redis_client.close()
     await db_manager.disconnect()
     print("✅  Restaurante fechado com segurança.")
 
-# --- CONFIGURAÇÃO DO APP FASTAPI ---
 app = FastAPI(
     title="Alquimista Musical API",
     description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
-    version="4.1.3-Final-CORS",
+    version="3.0.1-CORS-Fix", # Nova versão
     lifespan=lifespan
 )
 
+# <<< INÍCIO DA CORREÇÃO >>>
 # --- CONFIGURAÇÃO DE CORS ---
 origins = [
-    "http://localhost:5173",  # Para teste local do frontend
-    "http://localhost:3000",  # Outra porta comum para teste local
+    "http://localhost:5173",
+    "http://localhost:3000",
     "https://alquimistamusical.onrender.com" # URL de produção, já que o frontend é servido daqui
 ]
 
@@ -126,6 +119,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# <<< FIM DA CORREÇÃO >>>
+
 
 # Inclusão das Rotas
 app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
@@ -153,10 +148,14 @@ else:
     print(f"!! Verificando em: {STATIC_DIR}")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-# Ponto de Entrada ASGI com CORS para WebSocket
+# Ponto de Entrada ASGI
 sio = websocket_service.sio
+
+# <<< INÍCIO DA CORREÇÃO >>>
+# Adicionando a configuração de CORS também para o WebSocket
 application = socketio.ASGIApp(
     sio, 
     other_asgi_app=app,
     cors_allowed_origins=origins
 )
+# <<< FIM DA CORREÇÃO >>>
