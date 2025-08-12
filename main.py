@@ -1,4 +1,4 @@
-# Arquivo: src/main.py (VERSÃO FINAL, COM A LINHA DO ERRO REMOVIDA)
+# Arquivo: src/main.py (VERSÃO FINAL COM A CORREÇÃO DE CAMINHO DEFINITIVA)
 
 import os
 import asyncio
@@ -32,7 +32,6 @@ from services.cache_service import CacheService
 from database.database import db_manager
 
 # --- CONFIGURAÇÃO DE CORS ---
-# Esta parte está correta e é necessária para o HTTP
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -79,12 +78,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Alquimista Musical API",
-    description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
-    version="3.0.5-Final-Fix",
+    description="API para o projeto Alquimista Musical",
+    version="3.0.6-Final-Path-Fix",
     lifespan=lifespan
 )
 
-# Adiciona o middleware de CORS para HTTP
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -100,9 +98,15 @@ app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playl
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
 
-# Lógica para servir o Frontend
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "dist")
+# <<< INÍCIO DA CORREÇÃO DEFINITIVA DE CAMINHO >>>
+# Esta lógica é a mais robusta para encontrar a pasta 'dist'
+# independentemente de onde o script é executado.
+# Ela assume que a estrutura é: /raiz_do_projeto/static/dist
+# O Render executa a partir de /raiz_do_projeto/src, então precisamos "voltar" um nível.
+current_script_dir = os.path.dirname(__file__)
+project_root = os.path.abspath(os.path.join(current_script_dir, ".."))
+FRONTEND_BUILD_DIR = os.path.join(project_root, "static", "dist")
+# <<< FIM DA CORREÇÃO DEFINITIVA DE CAMINHO >>>
 
 if os.path.exists(FRONTEND_BUILD_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
@@ -118,11 +122,5 @@ else:
     print(f"!! AVISO: Fachada do Restaurante (Frontend) não encontrada em: {FRONTEND_BUILD_DIR}")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-# <<< INÍCIO DA CORREÇÃO >>>
-# Ponto de Entrada ASGI sem o argumento que causa o erro.
 sio = websocket_service.sio
-application = socketio.ASGIApp(
-    sio, 
-    other_asgi_app=app
-)
-# <<< FIM DA CORREÇÃO >>>
+application = socketio.ASGIApp(sio, other_asgi_app=app)
