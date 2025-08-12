@@ -1,4 +1,4 @@
-# Arquivo: src/main.py (VERSÃO HÍBRIDA FINAL)
+# Arquivo: src/main.py (VERSÃO HÍBRIDA FINAL CORRIGIDA)
 # Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-import socketio
 from redis import asyncio as aioredis
 
 # Carregar variáveis de ambiente no início de tudo
@@ -22,6 +21,8 @@ from routes.user import user_router
 from routes.music import music_router
 from routes.music_list import music_list_router
 from routes.notifications import notifications_router
+# ADICIONADO: Importa a nova rota de WebSocket
+from routes.websocket import websocket_router
 
 # Serviços (os funcionários do restaurante)
 from services.firebase_service import FirebaseService
@@ -43,7 +44,6 @@ from database.database import db_manager
 # =================================================================
 # GERENCIADOR DE CICLO DE VIDA (LIFESPAN)
 # =================================================================
-# O 'lifespan' é a forma moderna de lidar com eventos de startup e shutdown no FastAPI.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- ABERTURA DO RESTAURANTE (STARTUP) ---
@@ -68,14 +68,17 @@ async def lifespan(app: FastAPI):
     cache_service = CacheService(redis_service)
     
     # Serviços que dependem de outros
+    # O Maître apresenta o Gerente de Salão (PresenceService) ao Garçom (WebSocketService)
     websocket_service.set_presence_service(presence_service)
+    
+    # O SyncService agora é instanciado aqui e precisa do Garçom para enviar mensagens
     sync_service = SyncService(redis_service, presence_service, websocket_service)
     notification_service.set_sync_service(sync_service)
     keep_alive_service.set_redis_service(redis_service)
     
     # Serviços de negócio
     CloudinaryService.initialize()
-    FirebaseService.initialize() # Mantido, mesmo que desabilitado
+    FirebaseService.initialize()
     music_generation_service.set_dependencies(sync_service, notification_service, CloudinaryService())
 
     # 4. Iniciar tarefas de fundo (Zelador e Sistema de Comandas)
@@ -100,15 +103,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alquimista Musical API",
     description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
-    version="2.1.0-Robust", # Nova versão para refletir a arquitetura
-    lifespan=lifespan # Usando o novo gerenciador de ciclo de vida
+    version="2.2.0-Robust-Fixed", # Nova versão para refletir a correção
+    lifespan=lifespan
 )
 
-# --- Inclusão das Rotas da API (sem mudanças) ---
+# --- Inclusão das Rotas da API ---
 app.include_router(user_router, prefix="/api", tags=["Recepcionista (Usuários)"])
 app.include_router(music_router, prefix="/api/music", tags=["Garçom (Geração de Música)"])
 app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playlists)"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
+# ADICIONADO: Inclui a nova rota de WebSocket, que agora é gerenciada pelo FastAPI
+app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
+
 
 # --- LÓGICA PARA SERVIR O FRONTEND (sem mudanças) ---
 FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "static", "dist")
@@ -129,8 +135,9 @@ else:
 # =================================================================
 # PONTO DE ENTRADA FINAL DA APLICAÇÃO (ASGI)
 # =================================================================
-# Unifica o FastAPI (HTTP) com o Socket.IO (WebSocket)
-application = socketio.ASGIApp(
-    socketio_server=websocket_service.sio,
-    other_asgi_app=app
-)
+# A montagem do Socket.IO agora é mais simples, pois o FastAPI gerencia o endpoint.
+# O `socketio.ASGIApp` ainda é necessário para o transporte do Socket.IO funcionar.
+import socketio
+
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
+application = socketio.ASGIApp(sio, other_asgi_app=app)
