@@ -38,8 +38,8 @@ class WebSocketService:
     def register_events(self):
         """Registra os manipuladores de eventos do Socket.IO."""
         @self.sio.event
-        async def connect(sid, environ):
-            # Sua lógica de conexão aqui
+        async def connect(sid, environ, auth=None):
+            
             user_id = environ.get('HTTP_X_USER_ID')
             if not user_id:
                 print(f"🔌 Conexão anônima rejeitada: {sid}")
