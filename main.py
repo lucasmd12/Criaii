@@ -1,4 +1,5 @@
-# Arquivo: src/main.py (VERSÃO FINAL COM A CORREÇÃO DE CAMINHO DEFINITIVA)
+# Arquivo: src/main.py (VERSÃO 100% CORRETA COM DEPENDENCY INJECTION)
+# Função: O Maître D' do Restaurante - Orquestra a abertura, o fechamento e a operação de todos os serviços.
 
 import os
 import asyncio
@@ -9,16 +10,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from redis import asyncio as aioredis
 import socketio
-from fastapi.middleware.cors import CORSMiddleware
 
+# Carregar variáveis de ambiente no início de tudo
 load_dotenv()
 
-# Suas importações de rotas e serviços
+# Rotas
 from routes.user import user_router
 from routes.music import music_router
 from routes.music_list import music_list_router
 from routes.notifications import notifications_router
 from routes.websocket import websocket_router
+
+# Serviços
 from services.firebase_service import FirebaseService
 from services.cloudinary_service import CloudinaryService
 from services.websocket_service import websocket_service
@@ -29,25 +32,28 @@ from services.redis_service import RedisService
 from services.presence_service import PresenceService
 from services.sync_service import SyncService
 from services.cache_service import CacheService
-from database.database import db_manager
 
-# --- CONFIGURAÇÃO DE CORS ---
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://alquimistamusical.onrender.com"
-]
+# Banco de Dados
+from database.database import db_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("☀️  Bom dia! O Maître D' está abrindo o restaurante...")
+
+    # 1. Conectar ao Cofre (MongoDB) e guardar a chave no quadro
     await db_manager.connect()
     app.state.db_manager = db_manager
+
+    # 2. Ligar a Central Elétrica (Redis)
     redis_url = os.getenv("REDIS_URL")
     if not redis_url:
         raise RuntimeError("❌ ERRO CRÍTICO: REDIS_URL não configurada.")
+    
     redis_client = aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+    
+    # 3. Contratar e apresentar a equipe, guardando as chaves no app.state
     print("🤝  Maître D' está organizando o quadro de chaves dos serviços...")
+    
     app.state.redis_service = RedisService(redis_client)
     app.state.presence_service = PresenceService(app.state.redis_service)
     app.state.cache_service = CacheService(app.state.redis_service)
@@ -56,20 +62,30 @@ async def lifespan(app: FastAPI):
     app.state.websocket_service = websocket_service
     
     app.state.sync_service = SyncService(app.state.redis_service, app.state.presence_service, app.state.websocket_service)
+    
     notification_service.set_sync_service(app.state.sync_service)
     app.state.notification_service = notification_service
+    
     keep_alive_service.set_redis_service(app.state.redis_service)
+    
     CloudinaryService.initialize()
     app.state.cloudinary_service = CloudinaryService()
+    
     FirebaseService.initialize()
     app.state.firebase_service = FirebaseService()
+    
     music_generation_service.set_dependencies(app.state.sync_service, app.state.notification_service, app.state.cloudinary_service)
     app.state.music_generation_service = music_generation_service
+
+    # 4. Iniciar tarefas de fundo
     print("🚀  Maître D' está ligando os sistemas de fundo...")
     keep_alive_service.start()
     asyncio.create_task(app.state.sync_service.listen_for_events())
+    
     print("✅ Restaurante aberto e totalmente operacional!")
+    
     yield
+
     print("🌙  Boa noite! O Maître D' está encerrando os serviços...")
     keep_alive_service.stop()
     await redis_client.close()
@@ -78,17 +94,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Alquimista Musical API",
-    description="API para o projeto Alquimista Musical",
-    version="3.0.6-Final-Path-Fix",
+    description="API para o projeto Alquimista Musical - Estúdio Virtual Completo com Feedback em Tempo Real",
+    version="3.0.0-DI",
     lifespan=lifespan
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 # Inclusão das Rotas
@@ -98,15 +106,10 @@ app.include_router(music_list_router, prefix="/api/music", tags=["Maître (Playl
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Painel de Avisos"])
 app.include_router(websocket_router, tags=["Comunicação em Tempo Real (WebSocket)"])
 
-# <<< INÍCIO DA CORREÇÃO DEFINITIVA DE CAMINHO >>>
-# Esta lógica é a mais robusta para encontrar a pasta 'dist'
-# independentemente de onde o script é executado.
-# Ela assume que a estrutura é: /raiz_do_projeto/static/dist
-# O Render executa a partir de /raiz_do_projeto/src, então precisamos "voltar" um nível.
-current_script_dir = os.path.dirname(__file__)
-project_root = os.path.abspath(os.path.join(current_script_dir, ".."))
-FRONTEND_BUILD_DIR = os.path.join(project_root, "static", "dist")
-# <<< FIM DA CORREÇÃO DEFINITIVA DE CAMINHO >>>
+# Lógica para servir o Frontend
+# CORREÇÃO: O caminho para 'static' deve subir um nível a partir de 'src'
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+FRONTEND_BUILD_DIR = os.path.join(STATIC_DIR, "dist")
 
 if os.path.exists(FRONTEND_BUILD_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
@@ -120,7 +123,10 @@ if os.path.exists(FRONTEND_BUILD_DIR):
 else:
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     print(f"!! AVISO: Fachada do Restaurante (Frontend) não encontrada em: {FRONTEND_BUILD_DIR}")
+    print(f"!! Verificando em: {STATIC_DIR}")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
+# Ponto de Entrada ASGI
+# O `socketio.ASGIApp` ainda é necessário para o transporte do Socket.IO funcionar corretamente.
 sio = websocket_service.sio
 application = socketio.ASGIApp(sio, other_asgi_app=app)
